@@ -1,4 +1,4 @@
-﻿namespace Vicuna.Storage.Trees
+﻿namespace Vicuna.Storage
 {
     public static class Constants
     {
@@ -17,5 +17,7 @@
         public const ushort FloatSize = sizeof(float);
 
         public const ushort DoubleSize = sizeof(double);
+
+        public const ushort PageSize = 1024 * 8;
     }
 }

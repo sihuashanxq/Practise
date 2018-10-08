@@ -4,29 +4,11 @@ using Vicuna.Storage.Trees.Extensions;
 
 namespace Vicuna.Storage.Trees
 {
-    //LeafNode
-    //1byte 类型(溢出,非溢出)|KeySize|Pointer(如果时溢出,就是指向溢出节点Head的指针,否则就是当前值)
-    public class TreeNodePage : TreeNodePageInfo
+    public partial class TreeNodePage : TreeNodePageInfo
     {
         /// <summary>
-        /// 是否已脏
         /// </summary>
-        public bool IsDirty { get; internal set; }
-
-        /// <summary>
-        /// Key
-        /// </summary>
-        public List<ByteString> Keys { get; }
-
-        /// <summary>
-        /// Key's Value(用于表示指向下一级的指针)
-        /// </summary>
-        public List<long> Values { get; }
-
-        /// <summary>
-        /// Key是否溢出(多个相同Key,此时Value指向多个Key组成的链表的Head)
-        /// </summary>
-        public List<TreeNodeValueFlag> ValueFlags { get; }
+        public TreePageStream Stream { get; set; }
 
         /// <summary>
         /// 是否叶子节点
@@ -43,48 +25,60 @@ namespace Vicuna.Storage.Trees
         /// </summary>
         public bool IsOverflow => NodeType == TreeNodeType.Overflow;
 
+        /// <summary>
+        /// 空闲长度
+        /// </summary>
+        public int FreeSize => Upper - Lower;
+
         public TreeNodePage()
         {
-            Values = new List<long>();
             Keys = new List<ByteString>();
+            Values = new List<ByteString>();
         }
 
-        public void Load(Span<byte> span)
+        public void Load(byte[] buffer)
         {
-            if (span.Length < HeaderSizeOf)
+            Stream = new TreePageStream(buffer);
+
+            NodeType = (TreeNodeType)Stream.ReadByte();
+            PageId = Stream.ReadInt64();
+            PrePageId = Stream.ReadInt64();
+            NextPageId = Stream.ReadInt64();
+            Upper = Stream.ReadUInt16();
+            Lower = Stream.ReadUInt16();
+            KeySize = Stream.ReadUInt16();
+            ValueSize = Stream.ReadUInt16();
+            OverflowSize = Stream.ReadInt();
+            Capacity = Stream.ReadUInt16();
+            CheckSum = Stream.ReadInt();
+            Resvered = Stream.Read(ResveredLength).ToByteString();
+
+            for (var i = 0; i < Capacity; i++)
             {
-                throw new InvalidOperationException();
+                Keys.Add(Stream.Read(KeySize).ToByteString());
+                Values.Add(Stream.Read(ValueSize).ToByteString());
             }
 
-            //read spec order
-            var byteReader = new ByteReader(span);
-          
-            IsDirty = false;
-            NodeType = (TreeNodeType)byteReader.ReadByte();
-            PageId = byteReader.ReadInt64();
-            PrePageId = byteReader.ReadInt64();
-            NextPageId = byteReader.ReadInt64();
-            PageSize = byteReader.ReadUInt16();
-            FreeSize = byteReader.ReadUInt16();
-            KeyLength = byteReader.ReadUInt16();
-            ValueLength = byteReader.ReadUInt16();
-            CurrentCapacity = byteReader.ReadUInt16();
-            CheckSum = byteReader.ReadInt();
-            Resvered = byteReader.Read(ResveredLength).ToByteString();
-
-            for (var i = 0; i < CurrentCapacity; i++)
-            {
-                Keys.Add(byteReader.Read(KeyLength).ToByteString());
-                Values.Add(byteReader.ReadInt64());
-                ValueFlags.Add((TreeNodeValueFlag)byteReader.ReadByte());
-            }
-
-            //父节点多一组指针
             if (IsBranch)
             {
-                Values.Add(byteReader.ReadInt64());
-                ValueFlags.Add((TreeNodeValueFlag)byteReader.ReadByte());
+                //父节点多一组指针
+                Values.Add(Stream.Read(ValueSize).ToByteString());
             }
+        }
+
+        public byte[] GetNodeData()
+        {
+            if (Stream == null)
+            {
+                throw new NullReferenceException(nameof(Stream));
+            }
+
+            if (IsBranch)
+            {
+                return new byte[0];
+            }
+
+            return Stream.Read(Constants.PageSize - HeaderSizeOf);
         }
     }
 }

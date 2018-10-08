@@ -28,5 +28,15 @@ namespace Vicuna.Storage
 
             return Encoding.UTF8.GetString(Bytes);
         }
+
+        public int Compare(ByteString byteString)
+        {
+            return string.Compare(ToString(), byteString?.ToString());
+        }
+
+        public int ToInt()
+        {
+            return BitConverter.ToInt32(Bytes, 0);
+        }
     }
 }

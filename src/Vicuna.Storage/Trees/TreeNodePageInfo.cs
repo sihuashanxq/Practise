@@ -1,9 +1,14 @@
-﻿using System;
+﻿using System.Collections.Generic;
 
 namespace Vicuna.Storage.Trees
 {
     public class TreeNodePageInfo
     {
+        /// <summary>
+        /// 是否已脏
+        /// </summary>
+        public bool IsDirty { get; set; }
+
         /// <summary>
         /// 1byte
         /// </summary>
@@ -27,32 +32,32 @@ namespace Vicuna.Storage.Trees
         /// <summary>
         /// 2byte
         /// </summary>
-        public ushort PageSize { get; set; }
+        public ushort Upper { get; set; }
 
         /// <summary>
         /// 2byte
         /// </summary>
-        public ushort FreeSize { get; set; }
+        public ushort Lower { get; set; }
 
         /// <summary>
         /// 2byte
         /// </summary>
-        public ushort KeyLength { get; set; }
+        public ushort KeySize { get; set; }
 
         /// <summary>
         /// 2byte
         /// </summary>
-        public ushort ValueLength { get; set; }
+        public ushort ValueSize { get; set; }
+
+        /// <summary>
+        /// 4byte
+        /// </summary>
+        public int OverflowSize { get; set; }
 
         /// <summary>
         /// 2byte
         /// </summary>
-        public ushort CurrentCapacity { get; set; }
-
-        /// <summary>
-        /// 41 bytes
-        /// </summary>
-        public ByteString Resvered { get; set; }
+        public ushort Capacity { get; set; }
 
         /// <summary>
         /// 4byte
@@ -60,9 +65,24 @@ namespace Vicuna.Storage.Trees
         public int CheckSum { get; set; }
 
         /// <summary>
+        /// 21 bytes
+        /// </summary>
+        public ByteString Resvered { get; set; }
+
+        /// <summary>
+        /// 键
+        /// </summary>
+        public List<ByteString> Keys { get; set; }
+
+        /// <summary>
+        /// 键值
+        /// </summary>
+        public List<ByteString> Values { get; set; }
+
+        /// <summary>
         /// </summary>
         public const ushort HeaderSizeOf = 64;
 
-        public const ushort ResveredLength = 41;
+        public const ushort ResveredLength = 21;
     }
 }

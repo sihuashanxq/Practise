@@ -1,45 +1,45 @@
-﻿namespace Vicuna.Storage.Trees
+﻿using System;
+
+namespace Vicuna.Storage.Trees
 {
     public partial class TreeNodePage
     {
-        /// <summary>
-        /// </summary>
-        /// <param name="comparedKey"></param>
-        /// <returns></returns>
-        public int SearchKey(ByteString searchKey)
+        public int SearchNodeKey(ByteString searchKey)
         {
-            for (var i = 0; i < Keys.Count; i++)
+            for (var i = 0; i < NodeKeys.Count; i++)
             {
-                var key = Keys[i];
-                if (key.Compare(searchKey) > 0)
+                var key = NodeKeys[i];
+                if (key.Compare(searchKey) >= 0)
                 {
                     return i;
                 }
             }
 
-            return IsLeaf ? -1 : Keys.Count;
+            return -1;
         }
 
-        public int SearchKey(ByteString searchKey, out TreeNodePage treePage)
+        public int SearchNodeKey(ByteString searchKey, out TreeNodePage node)
         {
-            // 在当前节点中找到键应该在的位置
-            var index = SearchKey(searchKey);
-            if (index == -1)
-            {
-                treePage = null;
-                return index;
-            }
-
-            //查找结束
             if (IsLeaf)
             {
-                treePage = this;
-                return index;
+                node = this;
+                return SearchNodeKey(searchKey);
             }
 
-            treePage = null;
-            //Load Child 
-            return -1;
+            var index = SearchNodeKey(searchKey);
+            if (index > NodeValues.Count - 1)
+            {
+                throw new IndexOutOfRangeException(nameof(index));
+            }
+
+            var position = NodeValues[index];
+            var nodePage = StorageManager.LoadPage(position);
+            if (nodePage == null)
+            {
+                throw new NullReferenceException(nameof(nodePage));
+            }
+
+            return nodePage.SearchNodeKey(searchKey, out node);
         }
     }
 }

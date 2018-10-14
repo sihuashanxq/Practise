@@ -35,6 +35,11 @@ namespace Vicuna.Storage
             return BitConverter.ToInt32(Read(Constants.IntSize));
         }
 
+        public uint ReadUInt()
+        {
+            return BitConverter.ToUInt32(Read(Constants.IntSize));
+        }
+
         public long ReadInt64()
         {
             return BitConverter.ToInt64(Read(Constants.LongSize));
@@ -43,6 +48,36 @@ namespace Vicuna.Storage
         public bool ReadBoolean()
         {
             return BitConverter.ToBoolean(Read(Constants.BoolSize));
+        }
+
+        public void WriteInt16(short value)
+        {
+            Write(BitConverter.GetBytes(value));
+        }
+
+        public void WriteUInt16(ushort value)
+        {
+            Write(BitConverter.GetBytes(value));
+        }
+
+        public void WriteInt32(int value)
+        {
+            Write(BitConverter.GetBytes(value));
+        }
+
+        public void WriteUInt32(ushort value)
+        {
+            Write(BitConverter.GetBytes(value));
+        }
+
+        public void WriteInt64(long value)
+        {
+            Write(BitConverter.GetBytes(value));
+        }
+
+        public void WriteUInt64(ulong value)
+        {
+            Write(BitConverter.GetBytes(value));
         }
     }
 }

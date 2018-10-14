@@ -1,5 +1,5 @@
-﻿using System;
-using System.Collections.Generic;
+﻿using System.Collections.Generic;
+using Vicuna.Storage.Tree;
 using Vicuna.Storage.Trees.Extensions;
 
 namespace Vicuna.Storage.Trees
@@ -25,15 +25,21 @@ namespace Vicuna.Storage.Trees
         /// </summary>
         public bool IsOverflow => NodeType == TreeNodeType.Overflow;
 
-        /// <summary>
-        /// 空闲长度
-        /// </summary>
-        public int FreeSize => Upper - Lower;
+        public int MaxCapacity => (PageSize - HeaderSizeOf) / (KeySize + ValueSize);
 
-        public TreeNodePage()
+        public List<TreeNodePage> Pages { get; }
+
+        public StoragePageManager StorageManager { get; }
+
+        public TreeNodePage(StoragePageManager storageManager)
         {
-            Keys = new List<ByteString>();
-            Values = new List<ByteString>();
+            StorageManager = storageManager;
+            KeySize = 10;
+            ValueSize = 10;
+            PageSize = 8192;
+            Pages = new List<TreeNodePage>();
+            NodeKeys = new List<ByteString>();
+            NodeValues = new List<StoragePosition>();
         }
 
         public void Load(byte[] buffer)
@@ -44,8 +50,8 @@ namespace Vicuna.Storage.Trees
             PageId = Stream.ReadInt64();
             PrePageId = Stream.ReadInt64();
             NextPageId = Stream.ReadInt64();
-            Upper = Stream.ReadUInt16();
-            Lower = Stream.ReadUInt16();
+            PageSize = Stream.ReadUInt16();
+            FreeSize = Stream.ReadUInt16();
             KeySize = Stream.ReadUInt16();
             ValueSize = Stream.ReadUInt16();
             OverflowSize = Stream.ReadInt();
@@ -55,30 +61,40 @@ namespace Vicuna.Storage.Trees
 
             for (var i = 0; i < Capacity; i++)
             {
-                Keys.Add(Stream.Read(KeySize).ToByteString());
-                Values.Add(Stream.Read(ValueSize).ToByteString());
-            }
-
-            if (IsBranch)
-            {
-                //父节点多一组指针
-                Values.Add(Stream.Read(ValueSize).ToByteString());
+                NodeKeys.Add(Stream.Read(KeySize).ToByteString());
+                NodeValues.Add(new StoragePosition()
+                {
+                    DiskNumber = Stream.ReadInt(),
+                    PageNumber = Stream.ReadUInt(),
+                    PageOffset = Stream.ReadUInt16()
+                });
             }
         }
 
-        public byte[] GetNodeData()
+        public void Flush(byte[] buffer)
         {
-            if (Stream == null)
-            {
-                throw new NullReferenceException(nameof(Stream));
-            }
+            Stream = new TreePageStream(buffer);
 
-            if (IsBranch)
-            {
-                return new byte[0];
-            }
+            Stream.WriteByte((byte)NodeType);
+            Stream.WriteInt64(PageId);
+            Stream.WriteInt64(PrePageId);
+            Stream.WriteInt64(NextPageId);
+            Stream.WriteUInt16(PageSize);
+            Stream.WriteUInt16(PageSize);
+            Stream.WriteUInt16(KeySize);
+            Stream.WriteUInt16(ValueSize);
+            Stream.WriteInt32(OverflowSize);
+            Stream.WriteUInt16(Capacity);
+            Stream.WriteInt32(CheckSum);
+            Stream.Write(Resvered.Bytes, 0, ResveredLength);
 
-            return Stream.Read(Constants.PageSize - HeaderSizeOf);
+            for (var i = 0; i < NodeKeys.Count; i++)
+            {
+                Stream.Write(NodeKeys[i].Bytes, 0, NodeKeys[i].Length);
+                Stream.WriteInt32(NodeValues[i].DiskNumber);
+                Stream.WriteUInt32(NodeValues[i].PageNumber);
+                Stream.WriteUInt16(NodeValues[i].PageOffset);
+            }
         }
     }
 }

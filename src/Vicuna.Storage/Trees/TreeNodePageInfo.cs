@@ -32,12 +32,12 @@ namespace Vicuna.Storage.Trees
         /// <summary>
         /// 2byte
         /// </summary>
-        public ushort Upper { get; set; }
+        public ushort PageSize { get; set; }
 
         /// <summary>
         /// 2byte
         /// </summary>
-        public ushort Lower { get; set; }
+        public ushort FreeSize { get; set; }
 
         /// <summary>
         /// 2byte
@@ -72,12 +72,12 @@ namespace Vicuna.Storage.Trees
         /// <summary>
         /// 键
         /// </summary>
-        public List<ByteString> Keys { get; set; }
+        public List<ByteString> NodeKeys { get; set; }
 
         /// <summary>
-        /// 键值
+        /// 位置
         /// </summary>
-        public List<ByteString> Values { get; set; }
+        public List<StoragePosition> NodeValues { get; set; }
 
         /// <summary>
         /// </summary>

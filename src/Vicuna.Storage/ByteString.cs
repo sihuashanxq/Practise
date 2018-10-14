@@ -38,5 +38,10 @@ namespace Vicuna.Storage
         {
             return BitConverter.ToInt32(Bytes, 0);
         }
+
+        public long ToInt64()
+        {
+            return BitConverter.ToInt64(Bytes, 0);
+        }
     }
 }

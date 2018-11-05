@@ -1,7 +1,7 @@
 ﻿using System;
 using System.IO;
 
-namespace Vicuna.Storage
+namespace Vicuna.Storage.Trees
 {
     public class TreePageStream : MemoryStream
     {

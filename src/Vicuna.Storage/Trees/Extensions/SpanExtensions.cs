@@ -28,15 +28,5 @@ namespace Vicuna.Storage.Trees.Extensions
         {
             return BitConverter.ToInt32(span);
         }
-
-        public static ByteString ToByteString(this Span<byte> span)
-        {
-            return new ByteString(span);
-        }
-
-        public static ByteString ToByteString(this byte[] buffer)
-        {
-            return new ByteString(buffer);
-        }
     }
 }

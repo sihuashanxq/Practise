@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 
 namespace Vicuna.Storage.Trees
@@ -78,16 +79,7 @@ namespace Vicuna.Storage.Trees
             {
                 node.Keys.RemoveAt(index);
                 node.Values.RemoveAt(index);
-
-                if (key.ToString() == "1167")
-                {
-
-                }
-
-                if (!IsValid(node))
-                {
-                    Merge(node);
-                }
+                Merge(node);
             }
         }
 
@@ -105,7 +97,7 @@ namespace Vicuna.Storage.Trees
                 throw new NullReferenceException(nameof(parentNode));
             }
 
-            var oNextNode = nNextNode.HasNext ? GetNode(nNextNode.NextNodeId) : null;
+            var oNextNode = node.HasNext ? GetNode(node.NextNodeId) : null;
             if (oNextNode != null)
             {
                 oNextNode.IsDirty = true;
@@ -145,7 +137,7 @@ namespace Vicuna.Storage.Trees
                 node.Values = node.Values.Take(spliteIndex + 1).ToList();
             }
 
-            UpdateParentReference(nNextNode);
+            UpdateChildrenParentReference(nNextNode);
             Split(parentNode, node, nNextNode, spliteKey);
         }
 
@@ -196,7 +188,7 @@ namespace Vicuna.Storage.Trees
             {
                 node.Keys.AddRange(sibling.Keys);
                 node.Values.AddRange(sibling.Values);
-                UpdateParentReference(node);
+                UpdateNodeParentReference(sibling.Values, node.NodeId);
             }
 
             if (parent.IsRoot && parent.Keys.Count == 1)
@@ -235,11 +227,9 @@ namespace Vicuna.Storage.Trees
                 var prev = GetNode(node.PrevNodeId);
                 if (prev.ParentNodeId == node.ParentNodeId)
                 {
-                    if (prev.Keys.Count + node.Keys.Count <= _storage.NodeCapacity)
-                    {
-                        Merge(prev, node);
-                        return;
-                    }
+                    Merge(prev, node);
+                    Split(prev);
+                    return;
                 }
             }
 
@@ -248,42 +238,59 @@ namespace Vicuna.Storage.Trees
                 var next = GetNode(node.NextNodeId);
                 if (next.ParentNodeId == node.ParentNodeId)
                 {
-                    if (next.Keys.Count + node.Keys.Count <= _storage.NodeCapacity)
-                    {
-                        Merge(node, next);
-                    }
+                    Merge(node, next);
+                    Split(node);
                 }
             }
         }
 
-        private void UpdateParentReference(BTreeNode<TKey> node)
+        private void UpdateChildrenParentReference(BTreeNode<TKey> node)
         {
             if (node.IsLeaf)
             {
                 return;
             }
 
-            foreach (var item in node.Values)
-            {
-                var childNode = GetNode(item);
-                if (childNode == null)
-                {
-                    throw new NullReferenceException(nameof(childNode));
-                }
-
-                childNode.IsDirty = true;
-                childNode.ParentNodeId = node.NodeId;
-            }
+            UpdateNodeParentReference(node.Values, node.NodeId);
         }
 
+        private void UpdateNodeParentReference(IEnumerable<long> nodes, long parentId)
+        {
+            foreach (var item in nodes)
+            {
+                var node = GetNode(item);
+                if (node == null)
+                {
+                    throw new NullReferenceException(nameof(node));
+                }
+
+                node.IsDirty = true;
+                node.ParentNodeId = parentId;
+            }
+        }
 
         private BTreeNode<TKey> GetNodeForKey(TKey key)
         {
             var node = GetRoot();
-            while (node != null && !node.IsLeaf)
+            while (true)
             {
+                if (node == null || node.IsLeaf)
+                {
+                    break;
+                }
+
                 SearchKey(node, key, out var index);
                 node = GetNode(node.Values[index]);
+            }
+
+            if (node == null)
+            {
+                throw new NullReferenceException(nameof(node));
+            }
+
+            if (!node.IsLeaf)
+            {
+                throw new InvalidOperationException($"node:{node.NodeId} is not a leaf node!");
             }
 
             return node;
@@ -347,14 +354,12 @@ namespace Vicuna.Storage.Trees
 
             switch (node.Keys[last].CompareTo(key))
             {
-                case 1:
-                    index = last;
-                    return false;
                 case 0:
                     index = node.IsLeaf ? last : last + 1;
                     return true;
                 default:
-                    index = node.IsLeaf ? last : last + 1;
+                    //must be >
+                    index = last;
                     return false;
             }
         }

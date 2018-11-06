@@ -13,7 +13,7 @@ namespace Vicuna.Storage
                 _storage = new BTreeStorage<int>()
             };
 
-            for (var i = 100000; i >= 0; i--)
+            for (var i = 1000000; i >= 0; i--)
             {
                 x.Set(i, i);
             }
@@ -21,7 +21,7 @@ namespace Vicuna.Storage
             var stop = new Stopwatch();
             stop.Start();
 
-            for (var i = 0; i < 100000; i++)
+            for (var i = 1000000; i >= 0; i--)
             {
                 if (i > 9800 && i % 2 != 0)
                 {

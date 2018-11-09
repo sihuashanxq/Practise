@@ -1,4 +1,4 @@
-﻿namespace Vicuna.Storage
+﻿namespace Vicuna.Storage.Transactions
 {
     public class StorageLevelTransaction
     {

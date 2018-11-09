@@ -8,9 +8,9 @@ namespace Vicuna.Storage
     {
         static void Main(string[] args)
         {
-            var x = new BTree<int>()
+            var x = new Tree<int>()
             {
-                _storage = new BTreeStorage<int>()
+                _storage = new TreeStorage<int>()
             };
 
             for (var i = 1000000; i >= 0; i--)

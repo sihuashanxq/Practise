@@ -2,6 +2,8 @@
 {
     public static class Constants
     {
+        public const long NullPageId = -1;
+
         public const ushort ByteSize = sizeof(byte);
 
         public const ushort BoolSize = sizeof(bool);
@@ -18,6 +20,8 @@
 
         public const ushort DoubleSize = sizeof(double);
 
-        public const ushort PageSize = 1024 * 8;
+        public const int PageHeaderSize = 64;
+
+        public const ushort PageSize = 1024 * 16;
     }
 }

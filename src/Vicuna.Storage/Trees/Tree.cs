@@ -4,26 +4,26 @@ using System.Linq;
 
 namespace Vicuna.Storage.Trees
 {
-    public class BTree<TKey> where TKey : IComparable
+    public class Tree<TKey> where TKey : IComparable
     {
-        public BTreeStorage<TKey> _storage;
+        public TreeStorage<TKey> _storage;
 
-        private BTreeNode<TKey> GetRoot()
+        private TreeNode<TKey> GetRoot()
         {
             return _storage.GetRoot();
         }
 
-        private BTreeNode<TKey> GetNode(long index)
+        private TreeNode<TKey> GetNode(long index)
         {
             return _storage.GetNode(index);
         }
 
-        private BTreeNode<TKey> CreateNode(bool isLeaf)
+        private TreeNode<TKey> CreateNode(bool isLeaf)
         {
             return _storage.Create(isLeaf);
         }
 
-        private BTreeNode<TKey> CreateRootNode()
+        private TreeNode<TKey> CreateRootNode()
         {
             return _storage.CreateRoot();
         }
@@ -55,7 +55,7 @@ namespace Vicuna.Storage.Trees
             Set(node, key, value);
         }
 
-        public void Set(BTreeNode<TKey> node, TKey key, long value)
+        public void Set(TreeNode<TKey> node, TKey key, long value)
         {
             if (SearchKey(node, key, out var index))
             {
@@ -83,7 +83,7 @@ namespace Vicuna.Storage.Trees
             }
         }
 
-        private void Split(BTreeNode<TKey> node)
+        private void Split(TreeNode<TKey> node)
         {
             if (!IsFull(node))
             {
@@ -115,7 +115,7 @@ namespace Vicuna.Storage.Trees
             Split(parentNode, node, nNextNode);
         }
 
-        private void Split(BTreeNode<TKey> parentNode, BTreeNode<TKey> node, BTreeNode<TKey> nNextNode)
+        private void Split(TreeNode<TKey> parentNode, TreeNode<TKey> node, TreeNode<TKey> nNextNode)
         {
             var spliteIndex = _storage.NodeCapacity / 2;
             var spliteKey = node.Keys[spliteIndex];
@@ -141,7 +141,7 @@ namespace Vicuna.Storage.Trees
             Split(parentNode, node, nNextNode, spliteKey);
         }
 
-        private void Split(BTreeNode<TKey> parentNode, BTreeNode<TKey> node, BTreeNode<TKey> nNextNode, TKey splitedKey)
+        private void Split(TreeNode<TKey> parentNode, TreeNode<TKey> node, TreeNode<TKey> nNextNode, TKey splitedKey)
         {
             SearchKey(parentNode, splitedKey, out var keyInParentIndex);
 
@@ -156,7 +156,7 @@ namespace Vicuna.Storage.Trees
             Split(parentNode);
         }
 
-        private void Merge(BTreeNode<TKey> node, BTreeNode<TKey> sibling)
+        private void Merge(TreeNode<TKey> node, TreeNode<TKey> sibling)
         {
             var parent = GetNode(node.ParentNodeId);
 
@@ -177,7 +177,7 @@ namespace Vicuna.Storage.Trees
             Merge(parent, node, sibling);
         }
 
-        private void Merge(BTreeNode<TKey> parent, BTreeNode<TKey> node, BTreeNode<TKey> sibling)
+        private void Merge(TreeNode<TKey> parent, TreeNode<TKey> node, TreeNode<TKey> sibling)
         {
             if (node.IsLeaf)
             {
@@ -215,7 +215,7 @@ namespace Vicuna.Storage.Trees
             Merge(parent);
         }
 
-        private void Merge(BTreeNode<TKey> node)
+        private void Merge(TreeNode<TKey> node)
         {
             if (IsValid(node))
             {
@@ -244,7 +244,7 @@ namespace Vicuna.Storage.Trees
             }
         }
 
-        private void UpdateChildrenParentReference(BTreeNode<TKey> node)
+        private void UpdateChildrenParentReference(TreeNode<TKey> node)
         {
             if (node.IsLeaf)
             {
@@ -269,7 +269,7 @@ namespace Vicuna.Storage.Trees
             }
         }
 
-        private BTreeNode<TKey> GetNodeForKey(TKey key)
+        private TreeNode<TKey> GetNodeForKey(TKey key)
         {
             var node = GetRoot();
             while (true)
@@ -296,17 +296,17 @@ namespace Vicuna.Storage.Trees
             return node;
         }
 
-        private bool IsFull(BTreeNode<TKey> node)
+        private bool IsFull(TreeNode<TKey> node)
         {
             return node.Keys.Count >= _storage.NodeCapacity;
         }
 
-        private bool IsValid(BTreeNode<TKey> node)
+        private bool IsValid(TreeNode<TKey> node)
         {
             return node.Keys.Count > _storage.NodeCapacity / 2;
         }
 
-        private static bool SearchKey(BTreeNode<TKey> node, TKey key, out int index)
+        private static bool SearchKey(TreeNode<TKey> node, TKey key, out int index)
         {
             if (!node.Keys.Any())
             {

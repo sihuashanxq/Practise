@@ -2,15 +2,15 @@
 
 namespace Vicuna.Storage.Trees
 {
-    public class BTreePage
+    public class TreePage
     {
-        public BTreeNode<TKey> GetNode<TKey>()
+        public TreeNode<TKey> GetNode<TKey>()
             where TKey : IComparable
         {
             return null;
         }
 
-        public BTreeNode<TKey> AllocateNode<TKey>()
+        public TreeNode<TKey> AllocateNode<TKey>()
             where TKey : IComparable
         {
             return null;

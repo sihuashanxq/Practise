@@ -5,7 +5,7 @@ using Vicuna.Storage.Trees.Extensions;
 
 namespace Vicuna.Storage.Trees
 {
-    public class BTreeNode<TKey> where TKey : IComparable
+    public class TreeNode<TKey> where TKey : IComparable
     {
         public bool IsLeaf { get; set; }
 
@@ -39,12 +39,12 @@ namespace Vicuna.Storage.Trees
 
         public TKey MaxKey => Keys.LastOrDefault();
 
-        public BTreeNode(long nodeId) : this(nodeId, 800)
+        public TreeNode(long nodeId) : this(nodeId, 800)
         {
 
         }
 
-        public BTreeNode(long nodeId, int capacity)
+        public TreeNode(long nodeId, int capacity)
         {
             NodeId = nodeId;
             NextNodeId = -1;

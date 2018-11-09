@@ -4,42 +4,42 @@ using System.IO;
 
 namespace Vicuna.Storage.Trees
 {
-    public class BTreeStorage<TKey>
+    public class TreeStorage<TKey>
         where TKey : IComparable
     {
         public int NodeCapacity => (8192 * 2 - 30 - 2) / 14;
 
         public static int PageIndex = 2;
 
-        public Dictionary<long, BTreeNode<TKey>> _pages = new Dictionary<long, BTreeNode<TKey>>();
+        public Dictionary<long, TreeNode<TKey>> _pages = new Dictionary<long, TreeNode<TKey>>();
 
         public Stream Stream = new MemoryStream();
 
         public long RootId { get; set; }
 
-        public BTreeNode<TKey> Create(bool isLeaf)
+        public TreeNode<TKey> Create(bool isLeaf)
         {
-            var p = new BTreeNode<TKey>(PageIndex++) { IsLeaf = isLeaf };
+            var p = new TreeNode<TKey>(PageIndex++) { IsLeaf = isLeaf };
             _pages[p.NodeId] = p;
             return p;
         }
 
-        public BTreeNode<TKey> CreateRoot()
+        public TreeNode<TKey> CreateRoot()
         {
-            var p = new BTreeNode<TKey>(PageIndex++) { IsLeaf = false };
+            var p = new TreeNode<TKey>(PageIndex++) { IsLeaf = false };
             _pages[p.NodeId] = p;
             SetRoot(p.NodeId);
             return p;
         }
 
-        public BTreeNode<TKey> GetNode(long nodeIndex)
+        public TreeNode<TKey> GetNode(long nodeIndex)
         {
             if (_pages.TryGetValue(nodeIndex, out var page))
             {
                 return page;
             }
 
-            var node = new BTreeNode<TKey>(nodeIndex);
+            var node = new TreeNode<TKey>(nodeIndex);
             var buffer = GetPage(nodeIndex);
 
             node.Load(buffer);
@@ -69,7 +69,7 @@ namespace Vicuna.Storage.Trees
             return node;
         }
 
-        public BTreeNode<TKey> GetRoot()
+        public TreeNode<TKey> GetRoot()
         {
             if (RootId == 0)
             {

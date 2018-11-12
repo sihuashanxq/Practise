@@ -3,7 +3,7 @@
 namespace Vicuna.Storage.Pages
 {
     [StructLayout(LayoutKind.Explicit, Pack = 1, Size = 64)]
-    public unsafe struct PageHeaderInfo
+    public unsafe struct PageHeader
     {
         /// <summary>
         /// 页标志

@@ -5,8 +5,7 @@ namespace Vicuna.Storage.Trees
 {
     public class TreePageStream : MemoryStream
     {
-        public TreePageStream(byte[] buffer)
-            : base(buffer, true)
+        public TreePageStream(byte[] buffer)  : base(buffer, true)
         {
 
         }

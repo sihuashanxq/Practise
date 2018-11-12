@@ -23,5 +23,7 @@
         public const int PageHeaderSize = 64;
 
         public const ushort PageSize = 1024 * 16;
+
+        public const long InitFileSize = 1024 * 1024 * 2;
     }
 }

@@ -2,17 +2,17 @@
 {
     public class StorageLevelTransaction
     {
-        public void BeginTransaction()
+        public void Begin()
         {
 
         }
 
-        public void RollbackTransaction()
+        public void Commit()
         {
 
         }
 
-        public void CommitTransaction()
+        public void Rollback()
         {
 
         }

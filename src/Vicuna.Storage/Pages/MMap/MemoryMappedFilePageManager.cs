@@ -3,17 +3,17 @@ using System.IO.MemoryMappedFiles;
 
 namespace Vicuna.Storage.Pages.MMap
 {
-    public class MemoryMappedPageManager : PageManager
+    public class MemoryMappedFilePageManager : PageManager
     {
         private readonly FileStream _fileStream;
 
-        public MemoryMappedPageManager(FileStream fileStream)
+        public MemoryMappedFilePageManager(FileStream fileStream)
         {
             _fileStream = fileStream;
             Pager = CreatePager(Constants.InitFileSize);
         }
 
-        protected override Pager CreatePager(long length)
+        protected sealed override Pager CreatePager(long length)
         {
             if (length < _fileStream.Length)
             {

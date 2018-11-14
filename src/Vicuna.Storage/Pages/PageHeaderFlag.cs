@@ -8,6 +8,10 @@
 
         FixedSizeTree = 4,
 
-        VariableSizeTree = 8
+        VariableSizeTree = 8,
+
+        Segment = 16,
+
+        Free = 32,
     }
 }

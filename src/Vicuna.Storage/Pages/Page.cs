@@ -6,15 +6,20 @@ namespace Vicuna.Storage.Pages
     /// </summary>
     public class Page
     {
-        public Page(Memory<byte> buffer)
+        public Page(byte[] buffer)
         {
             Buffer = buffer;
+        }
+
+        public Page()
+        {
+
         }
 
         /// <summary>
         /// 页内容
         /// </summary>
-        public Memory<byte> Buffer { get; }
+        public byte[] Buffer { get; internal set; }
 
         /// <summary>
         /// 校验和

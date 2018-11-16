@@ -1,39 +1,37 @@
-﻿using System;
+﻿using System.Collections.Generic;
 
 namespace Vicuna.Storage.Pages
 {
     public class Segment
     {
-        private readonly SegmentPage _head;
+        protected SegmentHeadPage Page { get; }
 
-        private readonly PageManager _pageManager;
+        protected SortedSet<SegmentHeadPage.AllocationEntry> AllocationEntries => Page.AllocationEntries;
 
-        protected long HeadPageId => _head.PageId;
-
-        protected SegmentPage.AllocationEntry[] AllocationEntries => _head.AllocationEntries;
-
-        public Segment(long headPageId, PageManager pageManager)
+        public Segment(long pageId)
         {
-            _pageManager = pageManager;
+            Page = new SegmentHeadPage(null) { PageId = pageId };
         }
 
-        protected Segment(SegmentPage page, PageManager pageManager)
+        protected Segment(SegmentHeadPage page)
         {
-            _pageManager = pageManager;
+            Page = page;
         }
 
-        public bool GetHasFreeSpacePage(int size, out long id)
+        public bool GetHasFreeSpacePageToAllocate(int size, out long pageid)
         {
-            for (var i = 1; i < AllocationEntries.Length; i++)
+            foreach (var entry in AllocationEntries)
             {
-                if (AllocationEntries[i].MaxFreeSize >= size)
+                if (entry.MaxFreeSize >= size)
                 {
-                    id = HeadPageId + i;
+                    pageid = Page.PageId + entry.PageOffset;
                     return true;
                 }
+
+                break;
             }
 
-            id = -1;
+            pageid = -1;
             return false;
         }
     }

@@ -1,4 +1,5 @@
-﻿using System.Threading;
+﻿using System;
+using System.Threading;
 
 namespace Vicuna.Storage.Pages
 {
@@ -49,6 +50,11 @@ namespace Vicuna.Storage.Pages
             {
                 UnLock();
             }
+        }
+
+        public virtual byte[] GetPageContent(long id)
+        {
+            return GetPage(id).Buffer;
         }
 
         public virtual void FreePage(Page page)

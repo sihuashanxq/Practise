@@ -1,31 +1,115 @@
 ﻿using System.Collections.Generic;
+using System.Collections.Concurrent;
 
 namespace Vicuna.Storage
 {
     public class StorageSpace
     {
-        private List<StorageSegmentEntry> _freeSegments;
+        private StorageSegment _activeSegment;
 
-        private List<StorageSegmentEntry> _usedSegments;
+        private readonly Stack<long> _freeSegments;
+
+        private readonly HashSet<long> _fullSegments;
+
+        private readonly StorageSliceFreeHandling _freeHandling;
+
+        private readonly ConcurrentDictionary<long, StorageSegmentSpaceEntry> _notFullSegments;
+
+        public StorageSegment ActiveSegment
+        {
+            get
+            {
+                if (_activeSegment == null)
+                {
+                    _activeSegment = AllocateSegment();
+                }
+
+                return _activeSegment;
+            }
+        }
 
         public StorageSpace()
         {
-            _usedSegments = new List<StorageSegmentEntry>();
-            _freeSegments = new List<StorageSegmentEntry>();
+            _freeSegments = new Stack<long>();
+            _fullSegments = new HashSet<long>();
+            _freeHandling = new StorageSliceFreeHandling();
+            _notFullSegments = new ConcurrentDictionary<long, StorageSegmentSpaceEntry>();
         }
 
-        private void FreeSegment(long loc)
+        public bool Allocate(int size, out long loc)
         {
-            _freeSegments.Add(new StorageSegmentEntry(loc));
+            if (ActiveSegment.Allocate(size, out loc))
+            {
+                return true;
+            }
+
+            for (var i = 0; i < _notFullSegments.Count; i++)
+            {
+                var entry = _notFullSegments[i];
+                if (entry.UsedSize + size > StorageSegmentSpaceEntry.Capacity)
+                {
+                    continue;
+                }
+
+                var segment = GetSegment(entry.Loc);
+                if (segment == null)
+                {
+                    continue;
+                }
+
+                if (segment.Allocate(size, out loc))
+                {
+                    return true;
+                }
+            }
+
+            if (_notFullSegments.Count == 0)
+            {
+                _activeSegment = AllocateSegment();
+                _notFullSegments.TryAdd(_activeSegment.Loc, new StorageSegmentSpaceEntry(_activeSegment.Loc)));
+            }
+
+            return _activeSegment.Allocate(size, out loc);
         }
 
-        private StorageSegmentEntry AllocNewSegment()
+        private StorageSegment GetSegment(StorageSegmentSpaceEntry entry)
         {
             return null;
         }
 
-        public StorageSegment GetHasFreeSpaceSegment(int size)
+        private void FreeSegment(long loc)
         {
+            if (_fullSegments.Contains(loc))
+            {
+                _fullSegments.Remove(loc);
+            }
+
+            if (_notFullSegments.ContainsKey(loc))
+            {
+                _notFullSegments.Remove(loc, out var _);
+            }
+
+            if (_freeSegments.Count < 4)
+            {
+                _freeSegments.Push(loc);
+                return;
+            }
+
+            _freeHandling.Free(loc);
+        }
+
+        private StorageSegment AllocateSegment()
+        {
+            if (_freeSegments.Count > 0)
+            {
+                var entry = new StorageSegmentSpaceEntry(_freeSegments.Pop());
+            }
+
+            if (_freeHandling.Allocate(out var loc))
+            {
+                var entry = new StorageSegmentSpaceEntry(loc);
+            }
+
             return null;
         }
     }

@@ -4,15 +4,15 @@ namespace Vicuna.Storage
 {
     public class StorageSlice
     {
-        public long SliceLoc { get; }
+        public long Loc { get; }
 
         private List<StorageSlicePageEntry> _usedPages;
 
         private List<StorageSlicePageEntry> _freePages;
 
-        public StorageSlice(long sliceLoc)
+        public StorageSlice(long loc)
         {
-            SliceLoc = sliceLoc;
+            Loc = loc;
         }
 
         public long AllocPage()

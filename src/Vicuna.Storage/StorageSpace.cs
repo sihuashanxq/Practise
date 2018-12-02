@@ -1,13 +1,16 @@
 ﻿using System.Collections.Generic;
 using System.Collections.Concurrent;
+using System.Linq;
 
 namespace Vicuna.Storage
 {
     public class StorageSpace
     {
-        private StorageSegment _activeSegment;
+        public const int MaxSegmentCount = 512;
 
-        private readonly Stack<long> _freeSegments;
+        public const int MaxFreeSegmentCount = 4;
+
+        private StorageSegment _activeSegment;
 
         private readonly HashSet<long> _fullSegments;
 
@@ -30,7 +33,6 @@ namespace Vicuna.Storage
 
         public StorageSpace()
         {
-            _freeSegments = new Stack<long>();
             _fullSegments = new HashSet<long>();
             _freeHandling = new StorageSliceFreeHandling();
             _notFullSegments = new ConcurrentDictionary<long, StorageSegmentSpaceEntry>();
@@ -38,38 +40,73 @@ namespace Vicuna.Storage
 
         public bool Allocate(int size, out long loc)
         {
-            if (ActiveSegment.Allocate(size, out loc))
+            if (Allocate(ActiveSegment, size, out loc))
             {
                 return true;
             }
 
-            for (var i = 0; i < _notFullSegments.Count; i++)
+            foreach (var spaceEntry in _notFullSegments.Values.ToList())
             {
-                var entry = _notFullSegments[i];
-                if (entry.UsedSize + size > StorageSegmentSpaceEntry.Capacity)
+                if (spaceEntry.UsedSize + size > StorageSegmentSpaceEntry.Capacity)
                 {
                     continue;
                 }
 
-                var segment = GetSegment(entry.Loc);
+                var segment = GetSegment(spaceEntry);
                 if (segment == null)
                 {
                     continue;
                 }
 
-                if (segment.Allocate(size, out loc))
+                if (Allocate(segment, size, out loc))
                 {
                     return true;
                 }
             }
 
-            if (_notFullSegments.Count == 0)
+            var newSegment = AllocateSegment();
+            if (newSegment == null)
             {
-                _activeSegment = AllocateSegment();
-                _notFullSegments.TryAdd(_activeSegment.Loc, new StorageSegmentSpaceEntry(_activeSegment.Loc)));
+                loc = -1;
+                return false;
             }
 
-            return _activeSegment.Allocate(size, out loc);
+            return Allocate(newSegment, size, out loc);
+        }
+
+        /// <summary>
+        /// 从给定Segment中分配 size长度的空间
+        /// </summary>
+        /// <param name="segment">Segment</param>
+        /// <param name="size">需要分配的长度</param>
+        /// <param name="loc">分配空间的起始地址</param>
+        /// <returns></returns>
+        private bool Allocate(StorageSegment segment, int size, out long loc)
+        {
+            if (segment == null)
+            {
+                loc = -1;
+                return false;
+            }
+
+            if (!segment.Allocate(size, out loc))
+            {
+                return false;
+            }
+
+            if (segment.SpaceEntry.UsedSize == StorageSegmentSpaceEntry.Capacity/* *0.95 */)
+            {
+                _fullSegments.Add(segment.Loc);
+                _notFullSegments.TryRemove(segment.Loc, out var _);
+            }
+            else
+            {
+                _notFullSegments[segment.Loc] = segment.SpaceEntry;
+            }
+
+            _activeSegment = segment;
+
+            return true;
         }
 
         private StorageSegment GetSegment(StorageSegmentSpaceEntry entry)
@@ -84,27 +121,25 @@ namespace Vicuna.Storage
                 _fullSegments.Remove(loc);
             }
 
-            if (_notFullSegments.ContainsKey(loc))
+            if (!_notFullSegments.TryRemove(loc, out var spaceEntry))
             {
-                _notFullSegments.Remove(loc, out var _);
-            }
-
-            if (_freeSegments.Count < 4)
-            {
-                _freeSegments.Push(loc);
                 return;
             }
 
-            _freeHandling.Free(loc);
+            var freedSegment = GetSegment(spaceEntry);
+            if (freedSegment == null)
+            {
+                throw null;
+            }
+
+            foreach (var slice in freedSegment.GetSlices())
+            {
+                _freeHandling.Free(slice.Loc);
+            }
         }
 
         private StorageSegment AllocateSegment()
         {
-            if (_freeSegments.Count > 0)
-            {
-                var entry = new StorageSegmentSpaceEntry(_freeSegments.Pop());
-            }
-
             if (_freeHandling.Allocate(out var loc))
             {
                 var entry = new StorageSegmentSpaceEntry(loc);

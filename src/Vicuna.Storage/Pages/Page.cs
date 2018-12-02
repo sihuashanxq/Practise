@@ -52,6 +52,10 @@ namespace Vicuna.Storage.Pages
         public ushort FreeSize { get; internal set; }
 
         /// <summary>
+        /// </summary>
+        public ushort LastUsed { get; internal set; }
+
+        /// <summary>
         /// 页标志
         /// </summary>
         public PageHeaderFlag Flag { get; internal set; }

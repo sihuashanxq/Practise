@@ -33,13 +33,13 @@ namespace Vicuna.Storage.Pages
         /// 页大小
         /// </summary>
         [FieldOffset(24)]
-        public ushort PageSize;
+        public short PageSize;
 
         /// <summary>
         /// 页空闲字节数
         /// </summary>
         [FieldOffset(27)]
-        public ushort FreeSize;
+        public short FreeSize;
 
         /// <summary>
         /// 校验和
@@ -47,10 +47,16 @@ namespace Vicuna.Storage.Pages
         [FieldOffset(29)]
         public int CheckSum;
 
+        [FieldOffset(33)]
+        public short LastUsed;
+
+        [FieldOffset(35)]
+        public short ItemCount;
+
         /// <summary>
         /// 先保留30字节
         /// </summary>
-        [FieldOffset(33)]
-        public fixed byte Reserved[31];
+        [FieldOffset(37)]
+        public fixed byte Reserved[27];
     }
 }

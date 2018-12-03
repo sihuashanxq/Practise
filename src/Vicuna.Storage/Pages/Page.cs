@@ -4,22 +4,20 @@ namespace Vicuna.Storage.Pages
 {
     /// <summary>
     /// </summary>
-    public class Page
+    public unsafe class Page
     {
         public Page(byte[] buffer)
         {
             Buffer = buffer;
-        }
-
-        public Page()
-        {
-
+            Header = GetHeader(buffer);
         }
 
         /// <summary>
         /// 页内容
         /// </summary>
         public byte[] Buffer { get; internal set; }
+
+        public PageHeader Header { get; internal set; }
 
         /// <summary>
         /// 校验和
@@ -44,20 +42,32 @@ namespace Vicuna.Storage.Pages
         /// <summary>
         /// 页大小
         /// </summary>
-        public ushort PageSize { get; internal set; }
+        public short PageSize { get; internal set; }
 
         /// <summary>
         /// 页空闲字节数
         /// </summary>
-        public ushort FreeSize { get; internal set; }
+        public short FreeSize { get; internal set; }
 
         /// <summary>
         /// </summary>
-        public ushort LastUsed { get; internal set; }
+        public short LastUsed { get; internal set; }
+
+        /// <summary>
+        /// </summary>
+        public short ItemCount { get; internal set; }
 
         /// <summary>
         /// 页标志
         /// </summary>
         public PageHeaderFlag Flag { get; internal set; }
+
+        private static unsafe PageHeader GetHeader(byte[] buffer)
+        {
+            fixed (byte* pointer = buffer)
+            {
+                return *(PageHeader*)pointer;
+            }
+        }
     }
 }

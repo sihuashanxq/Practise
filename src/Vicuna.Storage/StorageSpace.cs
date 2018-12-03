@@ -16,7 +16,7 @@ namespace Vicuna.Storage
 
         private readonly StorageSliceFreeHandling _freeHandling;
 
-        private readonly ConcurrentDictionary<long, StorageSegmentSpaceEntry> _notFullSegments;
+        private readonly ConcurrentDictionary<long, StorageSpaceUsageEntry> _notFullSegments;
 
         public StorageSegment ActiveSegment
         {
@@ -35,19 +35,19 @@ namespace Vicuna.Storage
         {
             _fullSegments = new HashSet<long>();
             _freeHandling = new StorageSliceFreeHandling();
-            _notFullSegments = new ConcurrentDictionary<long, StorageSegmentSpaceEntry>();
+            _notFullSegments = new ConcurrentDictionary<long, StorageSpaceUsageEntry>();
         }
 
-        public bool Allocate(int size, out long loc)
+        public bool Allocate(int size, out AllocationBuffer buffer)
         {
-            if (Allocate(ActiveSegment, size, out loc))
+            if (Allocate(ActiveSegment, size, out buffer))
             {
                 return true;
             }
 
             foreach (var spaceEntry in _notFullSegments.Values.ToList())
             {
-                if (spaceEntry.UsedSize + size > StorageSegmentSpaceEntry.Capacity)
+                if (spaceEntry.UsedSize + size > 1024L * 16 * 1024 * 512)
                 {
                     continue;
                 }
@@ -58,20 +58,13 @@ namespace Vicuna.Storage
                     continue;
                 }
 
-                if (Allocate(segment, size, out loc))
+                if (Allocate(segment, size, out buffer))
                 {
                     return true;
                 }
             }
 
-            var newSegment = AllocateSegment();
-            if (newSegment == null)
-            {
-                loc = -1;
-                return false;
-            }
-
-            return Allocate(newSegment, size, out loc);
+            return Allocate(AllocateSegment(), size, out buffer);
         }
 
         /// <summary>
@@ -79,29 +72,29 @@ namespace Vicuna.Storage
         /// </summary>
         /// <param name="segment">Segment</param>
         /// <param name="size">需要分配的长度</param>
-        /// <param name="loc">分配空间的起始地址</param>
+        /// <param name="buffer">分配空间的起始地址</param>
         /// <returns></returns>
-        private bool Allocate(StorageSegment segment, int size, out long loc)
+        private bool Allocate(StorageSegment segment, int size, out AllocationBuffer buffer)
         {
             if (segment == null)
             {
-                loc = -1;
+                buffer = null;
                 return false;
             }
 
-            if (!segment.Allocate(size, out loc))
+            if (!segment.Allocate(size, out buffer))
             {
                 return false;
             }
 
-            if (segment.SpaceEntry.UsedSize == StorageSegmentSpaceEntry.Capacity/* *0.95 */)
+            if (segment.Usage.UsedSize == 1024L * 1024L * 16L * 512L/* *0.95 */)
             {
                 _fullSegments.Add(segment.Loc);
                 _notFullSegments.TryRemove(segment.Loc, out var _);
             }
             else
             {
-                _notFullSegments[segment.Loc] = segment.SpaceEntry;
+                _notFullSegments[segment.Loc] = segment.Usage;
             }
 
             _activeSegment = segment;
@@ -109,7 +102,7 @@ namespace Vicuna.Storage
             return true;
         }
 
-        private StorageSegment GetSegment(StorageSegmentSpaceEntry entry)
+        private StorageSegment GetSegment(StorageSpaceUsageEntry entry)
         {
             return null;
         }
@@ -134,7 +127,7 @@ namespace Vicuna.Storage
 
             foreach (var slice in freedSegment.GetSlices())
             {
-                _freeHandling.Free(slice.Loc);
+                _freeHandling.Free(slice.Pos);
             }
         }
 
@@ -142,7 +135,7 @@ namespace Vicuna.Storage
         {
             if (_freeHandling.Allocate(out var loc))
             {
-                var entry = new StorageSegmentSpaceEntry(loc);
+
             }
 
             return null;

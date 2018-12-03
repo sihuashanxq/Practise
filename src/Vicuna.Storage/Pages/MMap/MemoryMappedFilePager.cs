@@ -27,12 +27,25 @@ namespace Vicuna.Storage.Pages.MMap
             Count = File.Size % PageSize == 0 ? File.Size / PageSize : (File.Size / PageSize + 1);
         }
 
-        public override Page Create()
+        public unsafe override Page Create()
         {
-            return new Page(new byte[PageSize])
+            var buffer = new byte[PageSize];
+
+            fixed (byte* pointer = buffer)
             {
-                PageId = Interlocked.Add(ref _maxAllocatedPage, 1)
-            };
+                var header = (PageHeader*)pointer;
+
+                header->PageId = Interlocked.Add(ref _maxAllocatedPage, 1);
+                header->PrePageId = -1;
+                header->NextPageId = -1;
+                header->FreeSize = Constants.PageSize - Constants.PageHeaderSize;
+                header->PageSize = Constants.PageSize;
+                header->ItemCount = 0;
+                header->Flag = PageHeaderFlag.Data;
+                header->LastUsed = Constants.PageHeaderSize;
+
+                return new Page(buffer);
+            }
         }
 
         public override void FreePage(Page page)

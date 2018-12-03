@@ -2,54 +2,53 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
-using Vicuna.Storage.Pages;
 
 namespace Vicuna.Storage
 {
     public class StorageSegment
     {
-        private StorageSlice _activeSlice;
+        private StorageSlice _lastUsedSlice;
 
         private readonly Stack<long> _freeSlices;
 
         private readonly HashSet<long> _fullSlices;
 
-        private readonly ConcurrentDictionary<long, StorageSliceSpaceEntry> _notFullSlices;
+        private readonly ConcurrentDictionary<long, StorageSpaceUsageEntry> _notFullSlices;
 
         public long Loc { get; set; }
 
-        public StorageSlice ActiveSlice
+        public StorageSlice LastUsedSlice
         {
             get
             {
-                if (_activeSlice == null)
+                if (_lastUsedSlice == null)
                 {
-                    _activeSlice = new StorageSlice(-1);
+                    _lastUsedSlice = new StorageSlice(null, null);
                 }
 
-                return _activeSlice;
+                return _lastUsedSlice;
             }
         }
 
-        internal StorageSegmentSpaceEntry SpaceEntry { get; }
+        public StorageSpaceUsageEntry Usage { get; }
 
-        public StorageSegment(AllocatedPageBuffer page)
+        public StorageSegment()
         {
             _freeSlices = new Stack<long>();
             _fullSlices = new HashSet<long>();
-            _notFullSlices = new ConcurrentDictionary<long, StorageSliceSpaceEntry>();
+            _notFullSlices = new ConcurrentDictionary<long, StorageSpaceUsageEntry>();
         }
 
-        public bool Allocate(int size, out long loc)
+        public bool Allocate(int size, out AllocationBuffer buffer)
         {
-            if (Allocate(ActiveSlice, size, out loc))
+            if (Allocate(LastUsedSlice, size, out buffer))
             {
                 return true;
             }
 
-            foreach (var spaceEntry in _notFullSlices.Values.ToList())
+            foreach (var entry in _notFullSlices.Values.ToList())
             {
-                if (spaceEntry.UsedSize + size > 1024 * 1024)
+                if (entry.UsedSize + size > Constants.StorageSliceSize)
                 {
                     continue;
                 }
@@ -60,51 +59,44 @@ namespace Vicuna.Storage
                     continue;
                 }
 
-                if (Allocate(slice, size, out loc))
+                if (Allocate(slice, size, out buffer))
                 {
                     return true;
                 }
             }
 
-            var newSlice = AllocateSlice();
-            if (newSlice == null)
-            {
-                loc = -1;
-                return false;
-            }
-
-            return Allocate(newSlice, size, out loc);
+            return Allocate(AllocateSlice(), size, out buffer);
         }
 
-        private bool Allocate(StorageSlice slice, int size, out long loc)
+        private bool Allocate(StorageSlice slice, int size, out AllocationBuffer buffer)
         {
             if (slice == null)
             {
-                loc = -1;
+                buffer = null;
                 return false;
             }
 
-
-            if (!slice.Allocate(size, out loc))
+            if (!slice.Allocate(size, out buffer))
             {
                 return false;
             }
 
-            if (slice.SpaceEntry.UsedSize == StorageSliceSpaceEntry.Capacity)
+            if (slice.Usage.UsedSize == Constants.StorageSliceSize)
             {
+                _lastUsedSlice = null;
                 _fullSlices.Add(slice.Loc);
                 _notFullSlices.TryRemove(slice.Loc, out var _);
             }
             else
             {
-                _notFullSlices[slice.Loc] = slice.SpaceEntry;
+                _lastUsedSlice = slice;
+                _notFullSlices[slice.Loc] = slice.Usage;
             }
 
-            _activeSlice = slice;
             return true;
         }
 
-        public List<AllocatedPageBuffer> AllocatePage(int count)
+        public AllocationBuffer[] AllocatePage(int count)
         {
             if (count > 1024)
             {
@@ -119,42 +111,22 @@ namespace Vicuna.Storage
             return null;
         }
 
-        internal IEnumerable<StorageSliceSpaceEntry> GetSlices()
+        internal IEnumerable<StorageSpaceUsageEntry> GetSlices()
         {
             foreach (var item in _fullSlices)
             {
-                yield return new StorageSliceSpaceEntry(item, 0);
+                yield return new StorageSpaceUsageEntry(item, 0);
             }
 
             foreach (var item in _freeSlices)
             {
-                yield return new StorageSliceSpaceEntry(item);
+                yield return new StorageSpaceUsageEntry(item);
             }
 
             foreach (var item in _notFullSlices)
             {
                 yield return item.Value;
             }
-        }
-    }
-
-    internal class StorageSegmentSpaceEntry
-    {
-        public const long Capacity = 1024L * 1024L * 16L * 512L;
-
-        public long Loc { get; internal set; }
-
-        public long UsedSize { get; internal set; }
-
-        public StorageSegmentSpaceEntry(long loc) : this(loc, 0)
-        {
-
-        }
-
-        public StorageSegmentSpaceEntry(long loc, long usedSize)
-        {
-            Loc = loc;
-            UsedSize = usedSize;
         }
     }
 }

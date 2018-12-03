@@ -12,7 +12,7 @@ namespace Vicuna.Storage
 
         private Page _lastUsedPage;
 
-        public StoragePage _slicePage;
+        private StoragePage _slicePage;
 
         private readonly Stack<long> _freePages;
 
@@ -37,10 +37,10 @@ namespace Vicuna.Storage
 
         internal StorageSpaceUsageEntry Usage { get; }
 
-        public StorageSlice(StorageSlicePage page, Pager pager)
+        public StorageSlice(StorageSlicePage slicePage, Pager pager)
         {
             _pager = pager;
-            _slicePage = page;
+            _slicePage = slicePage;
             _freePages = new Stack<long>();
             _fullPages = new HashSet<long>();
             _notFullPages = new ConcurrentDictionary<long, StorageSpaceUsageEntry>();
@@ -113,25 +113,27 @@ namespace Vicuna.Storage
                 return false;
             }
 
-            if (page.LastUsed + size > Constants.PageSize)
+            if (page.LastUsedPos + size > Constants.PageSize)
             {
                 buffer = null;
                 return false;
             }
 
-            buffer = new AllocationBuffer(page, page.LastUsed, (short)size);
+            buffer = new AllocationBuffer(page, page.LastUsedPos, (short)size);
 
             page.ItemCount++;
-            page.LastUsed += (short)size;
             page.FreeSize -= (short)size;
+            page.LastUsedPos += (short)size;
 
             if (page.FreeSize == 0)
             {
-                _fullPages.Add(page.PageId);
+                _lastUsedPage = null;
+                _fullPages.Add(page.PagePos);
             }
             else
             {
-                _notFullPages.TryAdd(page.PageId, new StorageSpaceUsageEntry(page.PageId, Constants.PageSize - page.FreeSize));
+                _lastUsedPage = page;
+                _notFullPages.TryAdd(page.PagePos, new StorageSpaceUsageEntry(page.PagePos, Constants.PageSize - page.FreeSize));
             }
 
             return true;

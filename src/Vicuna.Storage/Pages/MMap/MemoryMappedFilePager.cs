@@ -35,14 +35,14 @@ namespace Vicuna.Storage.Pages.MMap
             {
                 var header = (PageHeader*)pointer;
 
-                header->PageId = Interlocked.Add(ref _maxAllocatedPage, 1);
-                header->PrePageId = -1;
-                header->NextPageId = -1;
+                header->PagePos = Interlocked.Add(ref _maxAllocatedPage, 1);
+                header->PrePagePos = -1;
+                header->NextPagePos = -1;
                 header->FreeSize = Constants.PageSize - Constants.PageHeaderSize;
                 header->PageSize = Constants.PageSize;
                 header->ItemCount = 0;
-                header->Flag = PageHeaderFlag.Data;
-                header->LastUsed = Constants.PageHeaderSize;
+                header->Flag = (byte)PageHeaderFlag.None;
+                header->LastUsedPos = Constants.PageHeaderSize;
 
                 return new Page(buffer);
             }

@@ -1,6 +1,4 @@
-﻿using System;
-
-namespace Vicuna.Storage.Pages
+﻿namespace Vicuna.Storage.Pages
 {
     /// <summary>
     /// </summary>
@@ -15,52 +13,78 @@ namespace Vicuna.Storage.Pages
         /// <summary>
         /// 页内容
         /// </summary>
-        public byte[] Buffer { get; internal set; }
-
-        public PageHeader Header { get; internal set; }
+        internal byte[] Buffer;
 
         /// <summary>
-        /// 校验和
+        /// 页头
         /// </summary>
-        public int CheckSum { get; internal set; }
+        internal PageHeader Header;
 
         /// <summary>
         /// 页面Id
         /// </summary>
-        public long PageId { get; internal set; }
+        public long PagePos
+        {
+            get => Header.PagePos;
+            set => Header.PagePos = value;
+        }
 
         /// <summary>
         /// 前一个页Id
         /// </summary>
-        public long PrePageId { get; internal set; }
+        public long PrePagePos
+        {
+            get => Header.PrePagePos;
+            set => Header.PrePagePos = value;
+        }
 
         /// <summary>
         /// 后一个页Id
         /// </summary>
-        public long NextPageId { get; internal set; }
+        public long NextPagePos
+        {
+            get => Header.NextPagePos;
+            set => Header.NextPagePos = value;
+        }
 
         /// <summary>
         /// 页大小
         /// </summary>
-        public short PageSize { get; internal set; }
+        public short PageSize => Header.PageSize;
 
         /// <summary>
         /// 页空闲字节数
         /// </summary>
-        public short FreeSize { get; internal set; }
+        public short FreeSize
+        {
+            get => Header.FreeSize;
+            set => Header.FreeSize = value;
+        }
 
         /// <summary>
         /// </summary>
-        public short LastUsed { get; internal set; }
+        public short LastUsedPos
+        {
+            get => Header.LastUsedPos;
+            set => Header.LastUsedPos = value;
+        }
 
         /// <summary>
         /// </summary>
-        public short ItemCount { get; internal set; }
+        public short ItemCount
+        {
+            get => Header.ItemCount;
+            set => Header.ItemCount = value;
+        }
 
         /// <summary>
         /// 页标志
         /// </summary>
-        public PageHeaderFlag Flag { get; internal set; }
+        public PageHeaderFlag Flag
+        {
+            get => (PageHeaderFlag)Header.Flag;
+            set => Header.Flag = (byte)value;
+        }
 
         private static unsafe PageHeader GetHeader(byte[] buffer)
         {

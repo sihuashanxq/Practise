@@ -2,16 +2,18 @@
 {
     public enum PageHeaderFlag : byte
     {
+        None = 0,
+
         Data = 1,
 
         Overflow = 2,
 
-        FixedSizeTree = 4,
+        Tree = 4,
 
-        VariableSizeTree = 8,
+        SpacePage = 8,
 
-        Segment = 16,
+        SlicePage = 16,
 
-        Free = 32,
+        SegmentPage = 32
     }
 }

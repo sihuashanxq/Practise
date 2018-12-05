@@ -19,15 +19,23 @@ namespace Vicuna.Storage
             }
 
             var pp = new MemoryMappedFilePageManager(new FileStream(@"1.txt", FileMode.OpenOrCreate)).Pager;
-            var slice = new StorageSlice(slicePage, pp);
+            var yx = new StorageSliceHandling(pp);
+
+            var slice = yx.AllocateSlice();
 
             AllocationBuffer buffer = null;
+            try
+            {
+                var x = slice.Allocate(160, out buffer);
+                var y = slice.Allocate(160, out buffer);
+            }
+            catch (Exception e)
+            {
 
-            var x = slice.Allocate(160, out buffer);
-            var y = slice.Allocate(160, out buffer);
+            }
             var xs = new List<AllocationBuffer>();
 
-            for (var i = 0; i < 17; i++)
+            for (var i = 0; i <  16 * 1000; i++)
             {
                 slice.Allocate(1024, out buffer);
                 xs.Add(buffer);

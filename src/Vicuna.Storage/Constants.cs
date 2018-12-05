@@ -20,16 +20,22 @@
 
         public const ushort DoubleSize = sizeof(double);
 
+        public const long Kb = 1024;
+
         public const short PageHeaderSize = 64;
 
-        public const short PageSize = 1024 * 16;
+        public const short PageSize = (short)Kb * 16;
 
-        public const long InitFileSize = 1024 * 1024 * 2;
+        public const long InitFileSize = Kb * Kb * 64;
 
-        public const long StorageSliceSize = PageSize * 1024;
+        public const long StroageSlicePageCount = Kb;
+
+        public const long StorageSliceSize = StroageSlicePageCount * PageSize * Kb;
 
         public const long StorageSegmentSize = StorageSliceSize * 512L;
 
         public const long StorageSpaceSize = StorageSegmentSize * 512L;
+
+        public const long StorageSliceFreeSize = StorageSliceSize - PageSize - (PageSize - PageHeaderSize) * StroageSlicePageCount - 1;
     }
 }

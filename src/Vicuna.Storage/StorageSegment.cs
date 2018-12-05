@@ -7,35 +7,38 @@ namespace Vicuna.Storage
 {
     public class StorageSegment
     {
+        private StoragePage _storagePage;
+
         private StorageSlice _lastUsedSlice;
 
-        private readonly Stack<long> _freeSlices;
+        private StorageSpaceUsageEntry _usage;
+
+        private readonly Queue<long> _freeSlices;
 
         private readonly HashSet<long> _fullSlices;
+
+        private readonly StorageSliceHandling _sliceHandling;
 
         private readonly ConcurrentDictionary<long, StorageSpaceUsageEntry> _notFullSlices;
 
         public long Loc { get; set; }
 
-        public StorageSlice LastUsedSlice
+        internal StoragePage StoragePage => _storagePage;
+
+        internal StorageSlice LastUsedSlice => _lastUsedSlice;
+
+        internal StorageSpaceUsageEntry Usage => _usage;
+
+        public StorageSegment(
+            StoragePage storagePage,
+            StorageSliceHandling sliceHandling
+        )
         {
-            get
-            {
-                if (_lastUsedSlice == null)
-                {
-                    _lastUsedSlice = new StorageSlice(null, null);
-                }
-
-                return _lastUsedSlice;
-            }
-        }
-
-        public StorageSpaceUsageEntry Usage { get; }
-
-        public StorageSegment()
-        {
-            _freeSlices = new Stack<long>();
+            _storagePage = storagePage;
+            _sliceHandling = sliceHandling;
+            _freeSlices = new Queue<long>();
             _fullSlices = new HashSet<long>();
+            _usage = new StorageSpaceUsageEntry();
             _notFullSlices = new ConcurrentDictionary<long, StorageSpaceUsageEntry>();
         }
 
@@ -65,32 +68,38 @@ namespace Vicuna.Storage
                 }
             }
 
-            return Allocate(AllocateSlice(), size, out buffer);
+            var allocatedSlice = AllocateSlice();
+            if (allocatedSlice == null)
+            {
+                return false;
+            }
+
+            return Allocate(allocatedSlice, size, out buffer);
         }
 
-        private bool Allocate(StorageSlice slice, int size, out AllocationBuffer buffer)
+        private bool Allocate(StorageSlice storageSlice, int size, out AllocationBuffer buffer)
         {
-            if (slice == null)
+            if (storageSlice == null)
             {
                 buffer = null;
                 return false;
             }
 
-            if (!slice.Allocate(size, out buffer))
+            if (!storageSlice.Allocate(size, out buffer))
             {
                 return false;
             }
 
-            if (slice.Usage.UsedSize == Constants.StorageSliceSize)
+            if (storageSlice.Usage.UsedSize == Constants.StorageSliceSize)
             {
                 _lastUsedSlice = null;
-                _fullSlices.Add(slice.Loc);
-                _notFullSlices.TryRemove(slice.Loc, out var _);
+                _fullSlices.Add(storageSlice.StroageSlicePage.PagePos);
+                _notFullSlices.TryRemove(storageSlice.Loc, out var _);
             }
             else
             {
-                _lastUsedSlice = slice;
-                _notFullSlices[slice.Loc] = slice.Usage;
+                _lastUsedSlice = storageSlice;
+                _notFullSlices[storageSlice.StroageSlicePage.PagePos] = storageSlice.Usage;
             }
 
             return true;
@@ -108,6 +117,16 @@ namespace Vicuna.Storage
 
         private StorageSlice AllocateSlice()
         {
+            if (_freeSlices.Count > 0)
+            {
+                return _sliceHandling.GetSlice(_freeSlices.Dequeue());
+            }
+
+            if (_notFullSlices.Count + _fullSlices.Count < 512)
+            {
+                return _sliceHandling.AllocateSlice();
+            }
+
             return null;
         }
 

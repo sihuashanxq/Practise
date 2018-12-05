@@ -10,7 +10,7 @@ namespace Vicuna.Storage
 
         public const int MaxFreeSegmentCount = 4;
 
-        private StorageSegment _activeSegment;
+        private StorageSegment _lastUsedSegment;
 
         private readonly HashSet<long> _fullSegments;
 
@@ -18,16 +18,16 @@ namespace Vicuna.Storage
 
         private readonly ConcurrentDictionary<long, StorageSpaceUsageEntry> _notFullSegments;
 
-        public StorageSegment ActiveSegment
+        public StorageSegment LastUsedSegment
         {
             get
             {
-                if (_activeSegment == null)
+                if (_lastUsedSegment == null)
                 {
-                    _activeSegment = AllocateSegment();
+                    _lastUsedSegment = AllocateSegment(); //_storageTransaction.CreateSegment();
                 }
 
-                return _activeSegment;
+                return _lastUsedSegment;
             }
         }
 
@@ -40,7 +40,7 @@ namespace Vicuna.Storage
 
         public bool Allocate(int size, out AllocationBuffer buffer)
         {
-            if (Allocate(ActiveSegment, size, out buffer))
+            if (Allocate(LastUsedSegment, size, out buffer))
             {
                 return true;
             }
@@ -97,7 +97,7 @@ namespace Vicuna.Storage
                 _notFullSegments[segment.Loc] = segment.Usage;
             }
 
-            _activeSegment = segment;
+            _lastUsedSegment = segment;
 
             return true;
         }

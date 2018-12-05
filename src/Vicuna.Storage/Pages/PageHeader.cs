@@ -33,6 +33,9 @@ namespace Vicuna.Storage.Pages
         public short LastUsedPos;
 
         [FieldOffset(37)]
-        public fixed byte Reserved[27];
+        public long ModifiedCount;
+
+        [FieldOffset(45)]
+        public fixed byte Reserved[19];
     }
 }

@@ -63,7 +63,7 @@
 
         /// <summary>
         /// </summary>
-        public short LastUsedPos
+        public short LastUsed
         {
             get => Header.LastUsedPos;
             set => Header.LastUsedPos = value;
@@ -75,6 +75,14 @@
         {
             get => Header.ItemCount;
             set => Header.ItemCount = value;
+        }
+
+        /// <summary>
+        /// </summary>
+        public long ModifiedCount
+        {
+            get => Header.ModifiedCount;
+            set => Header.ModifiedCount = value;
         }
 
         /// <summary>

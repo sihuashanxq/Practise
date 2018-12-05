@@ -7,7 +7,6 @@ namespace Vicuna.Storage
     {
         public StoragePage(byte[] buffer) : base(buffer)
         {
-
         }
 
         public virtual unsafe StorageSpaceUsageEntry GetEntry(int offset)

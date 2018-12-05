@@ -35,7 +35,7 @@ namespace Vicuna.Storage.Pages.MMap
             {
                 var header = (PageHeader*)pointer;
 
-                header->PagePos = Interlocked.Add(ref _maxAllocatedPage, 1);
+                header->PagePos = _maxAllocatedPage;
                 header->PrePagePos = -1;
                 header->NextPagePos = -1;
                 header->FreeSize = Constants.PageSize - Constants.PageHeaderSize;
@@ -44,8 +44,16 @@ namespace Vicuna.Storage.Pages.MMap
                 header->Flag = (byte)PageHeaderFlag.None;
                 header->LastUsedPos = Constants.PageHeaderSize;
 
+                _maxAllocatedPage++;
                 return new Page(buffer);
             }
+        }
+
+        public override long Create(int count)
+        {
+            var pos = _maxAllocatedPage;
+            _maxAllocatedPage += count;
+            return pos;
         }
 
         public override void FreePage(Page page)
@@ -53,9 +61,14 @@ namespace Vicuna.Storage.Pages.MMap
             throw new NotImplementedException();
         }
 
-        public override Page GetPage(long pageid)
+        public override Page GetPage(long pos)
         {
-            if (pageid > Count || pageid < 0)
+            return new Page(GetPageBuffer(pos));
+        }
+
+        public unsafe override byte[] GetPageBuffer(long pos)
+        {
+            if (pos > Count || pos < 0)
             {
                 throw new InvalidDataException("page offset out of data file size!");
             }
@@ -65,12 +78,28 @@ namespace Vicuna.Storage.Pages.MMap
                 throw new InvalidOperationException("pager not be initialized!");
             }
 
-            if (ReadPage(pageid * PageSize, out var content) != PageSize)
+            if (ReadPage(pos * PageSize, out var content) != PageSize)
             {
-                throw new InvalidDataException($"read page id:{pageid} error!");
+                throw new InvalidDataException($"read page id:{pos} error!");
             }
 
-            return new Page(content);
+            fixed (byte* pointer = content)
+            {
+                var header = (PageHeader*)pointer;
+                if (header->ModifiedCount == 0)
+                {
+                    header->PagePos = pos;
+                    header->PrePagePos = -1;
+                    header->NextPagePos = -1;
+                    header->FreeSize = Constants.PageSize - Constants.PageHeaderSize;
+                    header->PageSize = Constants.PageSize;
+                    header->ItemCount = 0;
+                    header->Flag = (byte)PageHeaderFlag.None;
+                    header->LastUsedPos = Constants.PageHeaderSize;
+                }
+            }
+
+            return content;
         }
 
         protected virtual int ReadPage(long offset, out byte[] content)

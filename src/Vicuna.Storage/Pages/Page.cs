@@ -94,6 +94,14 @@
             set => Header.Flag = (byte)value;
         }
 
+        public unsafe void FlushPageHeader()
+        {
+            fixed (byte* pointer = Buffer)
+            {
+                *(PageHeader*)pointer = Header;
+            }
+        }
+
         private static unsafe PageHeader GetHeader(byte[] buffer)
         {
             fixed (byte* pointer = buffer)

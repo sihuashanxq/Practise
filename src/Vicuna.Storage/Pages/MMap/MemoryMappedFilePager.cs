@@ -1,6 +1,6 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
-using System.Threading;
 
 namespace Vicuna.Storage.Pages.MMap
 {
@@ -18,12 +18,15 @@ namespace Vicuna.Storage.Pages.MMap
 
         public MemoryMappedFileInfo File { get; }
 
+        public Dictionary<long, byte[]> Pages { get; }
+
         public MemoryMappedFilePager(long maxAllocatedPage, MemoryMappedFileInfo file)
         {
             _maxAllocatedPage = maxAllocatedPage;
 
             File = file;
             Length = File.Size;
+            Pages = new Dictionary<long, byte[]>();
             Count = File.Size % PageSize == 0 ? File.Size / PageSize : (File.Size / PageSize + 1);
         }
 
@@ -45,6 +48,9 @@ namespace Vicuna.Storage.Pages.MMap
                 header->LastUsedPos = Constants.PageHeaderSize;
 
                 _maxAllocatedPage++;
+
+                Pages[header->PagePos] = buffer;
+
                 return new Page(buffer);
             }
         }
@@ -63,10 +69,10 @@ namespace Vicuna.Storage.Pages.MMap
 
         public override Page GetPage(long pos)
         {
-            return new Page(GetPageBuffer(pos));
+            return new Page(GetBuffer(pos));
         }
 
-        public unsafe override byte[] GetPageBuffer(long pos)
+        public unsafe override byte[] GetBuffer(long pos)
         {
             if (pos > Count || pos < 0)
             {
@@ -78,10 +84,19 @@ namespace Vicuna.Storage.Pages.MMap
                 throw new InvalidOperationException("pager not be initialized!");
             }
 
-            if (ReadPage(pos * PageSize, out var content) != PageSize)
+            byte[] content = null;
+
+            if (Pages.ContainsKey(pos))
+            {
+                content = Pages[pos];
+            }
+
+            else if (ReadPage(pos * PageSize, out content) != PageSize)
             {
                 throw new InvalidDataException($"read page id:{pos} error!");
             }
+
+            Pages[pos] = content;
 
             fixed (byte* pointer = content)
             {

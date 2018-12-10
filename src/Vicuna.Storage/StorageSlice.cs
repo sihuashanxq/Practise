@@ -45,6 +45,47 @@ namespace Vicuna.Storage
             InitializeSliceUsage();
         }
 
+        public bool AllocatePage(int pageCount, out Page[] pages)
+        {
+            if (_freePages.Count < pageCount)
+            {
+                pages = null;
+                return false;
+            }
+
+            pages = new Page[pageCount];
+
+            for (var i = pageCount - 1; i >= 0; i--)
+            {
+                var page = GetPage(_freePages.Dequeue());
+                if (page == null)
+                {
+                    throw new NullReferenceException(nameof(page));
+                }
+
+                pages[i] = page;
+
+                _fullPages.Add(page.PagePos);
+                _usage.UsedSize += Constants.PageSize - Constants.PageHeaderSize;
+            }
+
+            return true;
+        }
+
+        public bool AllocatePage(out Page page)
+        {
+            if (_freePages.Count > 0)
+            {
+                page = GetPage(_freePages.Dequeue()) ?? throw new NullReferenceException(nameof(page));
+                _fullPages.Add(page.PagePos);
+                _usage.UsedSize += Constants.PageSize - Constants.PageHeaderSize;
+                return true;
+            }
+
+            page = null;
+            return false;
+        }
+
         public bool Allocate(int size, out AllocationBuffer buffer)
         {
             if (size > Constants.PageSize - Constants.PageHeaderSize)
@@ -100,6 +141,7 @@ namespace Vicuna.Storage
             page.LastUsed += size;
             page.ItemCount += 1;
             page.ModifiedCount += size;
+            page.FlushPageHeader();
 
             if (page.FreeSize == 0)
             {

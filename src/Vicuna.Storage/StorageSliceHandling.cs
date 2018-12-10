@@ -14,15 +14,15 @@ namespace Vicuna.Storage
             _pager = pager;
         }
 
-        public unsafe StorageSlice GetSlice(long slicePagePos)
+        public StorageSlice GetSlice(long slicePagePos)
         {
-            var pageBuffer = _pager.GetPageBuffer(slicePagePos);
-            if (pageBuffer == null)
+            var buffer = _pager.GetBuffer(slicePagePos);
+            if (buffer == null)
             {
-                throw new NullReferenceException(nameof(pageBuffer));
+                throw new NullReferenceException(nameof(buffer));
             }
 
-            return new StorageSlice(new StorageSlicePage(pageBuffer), _pager);
+            return new StorageSlice(new StorageSlicePage(buffer), _pager);
         }
 
         public unsafe StorageSlice AllocateSlice()
@@ -33,14 +33,14 @@ namespace Vicuna.Storage
                 throw new IndexOutOfRangeException(nameof(slicePagePos));
             }
 
-            var pageBuffer = _pager.GetPageBuffer(slicePagePos);
-            if (pageBuffer == null)
+            var page = _pager.GetBuffer(slicePagePos);
+            if (page == null)
             {
-                throw new NullReferenceException(nameof(pageBuffer));
+                throw new NullReferenceException(nameof(page));
             }
 
             //初始化新分配的slice页
-            fixed (byte* buffer = pageBuffer)
+            fixed (byte* buffer = page)
             {
                 var header = (PageHeader*)buffer;
                 var entry = (StorageSliceSpaceUsageEntry*)&buffer[Constants.PageHeaderSize];
@@ -52,6 +52,7 @@ namespace Vicuna.Storage
                 header->ItemCount = SlicePageCount;
                 header->PageSize = Constants.PageSize;
                 header->LastUsedPos = Constants.PageSize - 1;
+                header->ModifiedCount += Constants.PageSize;
 
                 for (var i = 0; i < SlicePageCount; i++)
                 {
@@ -60,7 +61,7 @@ namespace Vicuna.Storage
                 }
             }
 
-            return new StorageSlice(new StorageSlicePage(pageBuffer), _pager);
+            return new StorageSlice(new StorageSlicePage(page), _pager);
         }
     }
 }

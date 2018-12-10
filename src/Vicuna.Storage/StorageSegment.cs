@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using Vicuna.Storage.Pages;
 
 namespace Vicuna.Storage
 {
@@ -25,7 +27,7 @@ namespace Vicuna.Storage
 
         internal StoragePage StoragePage => _storagePage;
 
-        internal StorageSlice LastUsedSlice => _lastUsedSlice;
+        internal StorageSlice LastUsedSlice => _lastUsedSlice ?? (_lastUsedSlice = GetSlice());
 
         internal StorageSpaceUsageEntry Usage => _usage;
 
@@ -40,6 +42,12 @@ namespace Vicuna.Storage
             _fullSlices = new HashSet<long>();
             _usage = new StorageSpaceUsageEntry();
             _notFullSlices = new ConcurrentDictionary<long, StorageSpaceUsageEntry>();
+
+            for (var i = 0; i < _storagePage.ItemCount; i++)
+            {
+                _notFullSlices[_storagePage.GetEntry(64).Pos] = _storagePage.GetEntry(64);
+                _lastUsedSlice = _sliceHandling.GetSlice(_storagePage.GetEntry(64).Pos);
+            }
         }
 
         public bool Allocate(int size, out AllocationBuffer buffer)
@@ -56,7 +64,7 @@ namespace Vicuna.Storage
                     continue;
                 }
 
-                var slice = null as StorageSlice;
+                var slice = _sliceHandling.GetSlice(entry.Pos);
                 if (slice == null)
                 {
                     continue;
@@ -68,7 +76,7 @@ namespace Vicuna.Storage
                 }
             }
 
-            var allocatedSlice = AllocateSlice();
+            var allocatedSlice = GetSlice();
             if (allocatedSlice == null)
             {
                 return false;
@@ -105,17 +113,75 @@ namespace Vicuna.Storage
             return true;
         }
 
-        public AllocationBuffer[] AllocatePage(int count)
+        public bool AllocatePage(int pageCount, out Page[] pages)
         {
-            if (count > 1024)
+            if (pageCount > 1024)
             {
-                throw new InvalidOperationException($"allocated page count:{count} more than 1024 at once!");
+                throw new InvalidOperationException($"allocated page count:{pageCount} more than 1024 at once!");
             }
 
-            return null;
+            if (AllocatePage(LastUsedSlice, pageCount, out pages))
+            {
+                return true;
+            }
+
+            foreach (var entry in _notFullSlices.Values.ToList())
+            {
+                if (entry.UsedSize + Constants.PageSize * pageCount > Constants.StorageSliceSize)
+                {
+                    continue;
+                }
+
+                var slice = _sliceHandling.GetSlice(entry.Pos);
+                if (slice == null)
+                {
+                    continue;
+                }
+
+                if (AllocatePage(slice, pageCount, out pages))
+                {
+                    return true;
+                }
+            }
+
+            var allocatedSlice = GetSlice();
+            if (allocatedSlice == null)
+            {
+                return false;
+            }
+
+            return AllocatePage(allocatedSlice, pageCount, out pages);
         }
 
-        private StorageSlice AllocateSlice()
+        private bool AllocatePage(StorageSlice storageSlice, int pageCount, out Page[] pages)
+        {
+            if (storageSlice == null)
+            {
+                pages = null;
+                return false;
+            }
+
+            if (!storageSlice.AllocatePage(pageCount, out pages))
+            {
+                return false;
+            }
+
+            if (storageSlice.Usage.UsedSize == Constants.StorageSliceSize)
+            {
+                _lastUsedSlice = null;
+                _fullSlices.Add(storageSlice.StroageSlicePage.PagePos);
+                _notFullSlices.TryRemove(storageSlice.Loc, out var _);
+            }
+            else
+            {
+                _lastUsedSlice = storageSlice;
+                _notFullSlices[storageSlice.StroageSlicePage.PagePos] = storageSlice.Usage;
+            }
+
+            return true;
+        }
+
+        private StorageSlice GetSlice()
         {
             if (_freeSlices.Count > 0)
             {
@@ -124,7 +190,11 @@ namespace Vicuna.Storage
 
             if (_notFullSlices.Count + _fullSlices.Count < 512)
             {
-                return _sliceHandling.AllocateSlice();
+                var slice = _sliceHandling.AllocateSlice();
+
+                _notFullSlices[slice.StroageSlicePage.PagePos] = slice.Usage;
+
+                return slice;
             }
 
             return null;

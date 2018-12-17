@@ -17,5 +17,4 @@ namespace Vicuna.Storage
             Length = length;
         }
     }
-
 }

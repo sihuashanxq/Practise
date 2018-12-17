@@ -4,18 +4,18 @@ using Vicuna.Storage.Pages;
 namespace Vicuna.Storage
 {
 
-    public class StorageSegmentHandling
+    public class StorageSegmentManager
     {
-        private StorageSliceHandling _sliceHandling;
+        private readonly StorageSliceManager _sliceManager;
 
-        public StorageSegmentHandling(StorageSliceHandling sliceHandling)
+        public StorageSegmentManager(StorageSliceManager sliceManager)
         {
-            _sliceHandling = sliceHandling;
+            _sliceManager = sliceManager;
         }
 
         public unsafe StorageSegment Allocate()
         {
-            var slice = _sliceHandling.AllocateSlice();
+            var slice = _sliceManager.Allocate();
             if (slice == null)
             {
                 throw new NullReferenceException(nameof(slice));
@@ -29,7 +29,7 @@ namespace Vicuna.Storage
             fixed (byte* buffer = page.Buffer)
             {
                 var header = (PageHeader*)buffer;
-                var sliceEntry = (StorageSpaceUsageEntry*)&buffer[Constants.PageHeaderSize];
+                var sliceEntry = (StorageSpaceEntry*)&buffer[Constants.PageHeaderSize];
 
                 header->ItemCount = 1;
                 header->PagePos = page.PagePos;
@@ -43,7 +43,7 @@ namespace Vicuna.Storage
                 sliceEntry->UsedSize = slice.Usage.UsedSize;
             }
 
-            return new StorageSegment(new StoragePage(page.Buffer), _sliceHandling);
+            return new StorageSegment(new StoragePage(page.Buffer), _sliceManager);
         }
     }
 }

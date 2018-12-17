@@ -6,15 +6,13 @@ using Vicuna.Storage.Pages;
 
 namespace Vicuna.Storage
 {
-    public class StorageSlice
+    public class StorageSlice : IDisposable
     {
-        public long Loc { get; }
-
         private Pager _pager;
 
         private Page _lastUsedPage;
 
-        private StorageSpaceUsageEntry _usage;
+        private StorageSpaceEntry _usage;
 
         private StoragePage _storageSlicePage;
 
@@ -24,11 +22,11 @@ namespace Vicuna.Storage
 
         private readonly ConcurrentDictionary<long, Page> _cachedPages;
 
-        private readonly ConcurrentDictionary<long, StorageSpaceUsageEntry> _notFullPages;
+        private readonly ConcurrentDictionary<long, StorageSpaceEntry> _notFullPages;
 
         internal Page LastUsedPage => _lastUsedPage ?? (_lastUsedPage = GetSliceUnUsedPage());
 
-        internal StorageSpaceUsageEntry Usage => _usage;
+        internal StorageSpaceEntry Usage => _usage;
 
         internal StoragePage StroageSlicePage => _storageSlicePage;
 
@@ -38,8 +36,8 @@ namespace Vicuna.Storage
             _fullPages = new HashSet<long>();
             _pager = pager ?? throw new NullReferenceException(nameof(pager));
             _storageSlicePage = stroageSlicePage ?? throw new NullReferenceException(nameof(_storageSlicePage));
-            _notFullPages = new ConcurrentDictionary<long, StorageSpaceUsageEntry>();
-            _usage = new StorageSpaceUsageEntry(stroageSlicePage.PagePos);
+            _notFullPages = new ConcurrentDictionary<long, StorageSpaceEntry>();
+            _usage = new StorageSpaceEntry(stroageSlicePage.PagePos);
             _cachedPages = new ConcurrentDictionary<long, Page>() { [stroageSlicePage.PagePos] = stroageSlicePage };
 
             InitializeSliceUsage();
@@ -152,7 +150,7 @@ namespace Vicuna.Storage
                 return true;
             }
 
-            var entry = new StorageSpaceUsageEntry(page.PagePos, Constants.PageSize - page.FreeSize);
+            var entry = new StorageSpaceEntry(page.PagePos, Constants.PageSize - page.FreeSize);
 
             _lastUsedPage = page;
             _usage.UsedSize += size;
@@ -190,7 +188,7 @@ namespace Vicuna.Storage
         {
             for (var i = 0; i < _storageSlicePage.ItemCount; i++)
             {
-                var entryOffset = Constants.PageHeaderSize + i * StorageSliceSpaceUsageEntry.SizeOf;
+                var entryOffset = Constants.PageHeaderSize + i * StorageSliceSpaceEntry.SizeOf;
                 var usageEntry = _storageSlicePage.GetEntry(entryOffset);
                 if (usageEntry.UsedSize == Constants.PageSize)
                 {
@@ -208,6 +206,34 @@ namespace Vicuna.Storage
 
                 _notFullPages.TryAdd(usageEntry.Pos, usageEntry);
                 _usage.UsedSize += usageEntry.UsedSize;
+            }
+        }
+
+        public unsafe void Dispose()
+        {
+            var index = 0;
+            var offset = Constants.PageHeaderSize;
+            var slicePage = _storageSlicePage;
+
+            foreach (var item in _fullPages)
+            {
+                offset += StorageSliceSpaceEntry.SizeOf;
+                slicePage.SetEntry(offset, new StorageSpaceEntry(item, Constants.PageSize));
+                index++;
+            }
+
+            foreach (var item in _notFullPages)
+            {
+                offset += StorageSliceSpaceEntry.SizeOf;
+                slicePage.SetEntry(offset, item.Value);
+                index++;
+            }
+
+            foreach (var item in _freePages)
+            {
+                offset += StorageSliceSpaceEntry.SizeOf;
+                slicePage.SetEntry(offset, new StorageSpaceEntry(item));
+                index++;
             }
         }
     }

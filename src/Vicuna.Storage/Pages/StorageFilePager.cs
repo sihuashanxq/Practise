@@ -4,30 +4,23 @@ using System.IO;
 
 namespace Vicuna.Storage.Pages.MMap
 {
-    public class MemoryMappedFilePager : Pager
+    public class StorageFilePager : Pager
     {
         private long _maxAllocatedPage;
 
         public override long MaxAllocatedPage => _maxAllocatedPage;
 
-        public override long Count { get; }
-
-        public override long Length { get; }
-
         public override int PageSize { get; } = Constants.PageSize;
 
-        public MemoryMappedFileInfo File { get; }
+        public StorageFile StorageFile { get; }
 
         public Dictionary<long, byte[]> Pages { get; }
 
-        public MemoryMappedFilePager(long maxAllocatedPage, MemoryMappedFileInfo file)
+        public StorageFilePager(long maxAllocatedPage, StorageFile file)
         {
             _maxAllocatedPage = maxAllocatedPage;
-
-            File = file;
-            Length = File.Size;
+            StorageFile = file;
             Pages = new Dictionary<long, byte[]>();
-            Count = File.Size % PageSize == 0 ? File.Size / PageSize : (File.Size / PageSize + 1);
         }
 
         public unsafe override Page Create()
@@ -72,38 +65,37 @@ namespace Vicuna.Storage.Pages.MMap
             return new Page(GetBuffer(pos));
         }
 
-        public unsafe override byte[] GetBuffer(long pos)
+        public unsafe override byte[] GetBuffer(long pageOffset)
         {
-            if (pos > Count || pos < 0)
+            if (pageOffset < 0)
             {
-                throw new InvalidDataException("page offset out of data file size!");
+                throw new IndexOutOfRangeException(nameof(pageOffset));
             }
 
-            if (File == null || File.Stream == null)
+            if (StorageFile == null)
             {
                 throw new InvalidOperationException("pager not be initialized!");
             }
 
             byte[] content = null;
 
-            if (Pages.ContainsKey(pos))
+            if (Pages.ContainsKey(pageOffset))
             {
-                content = Pages[pos];
+                content = Pages[pageOffset];
+            }
+            else if (ReadPage(pageOffset * PageSize, out content) != PageSize)
+            {
+                throw new InvalidDataException($"read page id:{pageOffset} error!");
             }
 
-            else if (ReadPage(pos * PageSize, out content) != PageSize)
-            {
-                throw new InvalidDataException($"read page id:{pos} error!");
-            }
-
-            Pages[pos] = content;
+            Pages[pageOffset] = content;
 
             fixed (byte* pointer = content)
             {
                 var header = (PageHeader*)pointer;
                 if (header->ModifiedCount == 0)
                 {
-                    header->PagePos = pos;
+                    header->PagePos = pageOffset;
                     header->PrePagePos = -1;
                     header->NextPagePos = -1;
                     header->FreeSize = Constants.PageSize - Constants.PageHeaderSize;
@@ -119,22 +111,15 @@ namespace Vicuna.Storage.Pages.MMap
 
         protected virtual int ReadPage(long offset, out byte[] content)
         {
-            if (offset > Length - PageSize)
-            {
-                throw new InvalidDataException("page offset out of data file size!");
-            }
+            content = StorageFile.Read(offset, Constants.PageSize);
 
-            content = new byte[PageSize];
-
-            File.Stream.Seek(offset, SeekOrigin.Begin);
-
-            return File.Stream.Read(content);
+            return content.Length;
         }
 
         public override void Dispose()
         {
             //flush
-            File.Dispose();
+            StorageFile.Dispose();
         }
     }
 }

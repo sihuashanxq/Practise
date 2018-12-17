@@ -7,9 +7,10 @@ namespace Vicuna.Storage
     {
         public StoragePage(byte[] buffer) : base(buffer)
         {
+
         }
 
-        public virtual unsafe StorageSpaceUsageEntry GetEntry(int offset)
+        public virtual unsafe StorageSpaceEntry GetEntry(int offset)
         {
             if (offset > Buffer.Length || offset < 0)
             {
@@ -18,11 +19,11 @@ namespace Vicuna.Storage
 
             fixed (byte* buffer = &Buffer[offset])
             {
-                return new StorageSpaceUsageEntry(*(long*)buffer, *(long*)(buffer + sizeof(long)));
+                return new StorageSpaceEntry(*(long*)buffer, *(long*)(buffer + sizeof(long)));
             }
         }
 
-        public virtual unsafe void AddEntry(int offset, StorageSpaceUsageEntry entry)
+        public virtual unsafe void SetEntry(int offset, StorageSpaceEntry entry)
         {
             if (offset > Buffer.Length || offset < 0)
             {
@@ -35,5 +36,7 @@ namespace Vicuna.Storage
                 *(long*)(buffer + sizeof(long)) = entry.UsedSize;
             }
         }
+
+        public StorageSpaceEntry GetFirstEntry() => GetEntry(Constants.PageHeaderSize);
     }
 }

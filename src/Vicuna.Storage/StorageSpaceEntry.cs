@@ -3,7 +3,7 @@
 namespace Vicuna.Storage
 {
     [StructLayout(LayoutKind.Explicit, Pack = 1, Size = 10)]
-    public struct StorageSpaceUsageEntry
+    public struct StorageSpaceEntry
     {
         [FieldOffset(0)]
         public long Pos;
@@ -11,13 +11,13 @@ namespace Vicuna.Storage
         [FieldOffset(8)]
         public long UsedSize;
 
-        public StorageSpaceUsageEntry(long pos)
+        public StorageSpaceEntry(long pos)
              : this(pos, 0)
         {
 
         }
 
-        public StorageSpaceUsageEntry(long pos, long usedSize)
+        public StorageSpaceEntry(long pos, long usedSize)
         {
             Pos = pos;
             UsedSize = usedSize;
@@ -25,7 +25,7 @@ namespace Vicuna.Storage
     }
 
     [StructLayout(LayoutKind.Explicit, Pack = 1, Size = 10)]
-    internal struct StorageSliceSpaceUsageEntry
+    internal struct StorageSliceSpaceEntry
     {
         public const int SizeOf = 10;
 

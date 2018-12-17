@@ -13,15 +13,15 @@ namespace Vicuna.Storage
 
         private StorageSlice _lastUsedSlice;
 
-        private StorageSpaceUsageEntry _usage;
+        private StorageSpaceEntry _usage;
 
         private readonly Queue<long> _freeSlices;
 
         private readonly HashSet<long> _fullSlices;
 
-        private readonly StorageSliceHandling _sliceHandling;
+        private readonly StorageSliceManager _sliceHandling;
 
-        private readonly ConcurrentDictionary<long, StorageSpaceUsageEntry> _notFullSlices;
+        private readonly ConcurrentDictionary<long, StorageSpaceEntry> _notFullSlices;
 
         public long Loc { get; set; }
 
@@ -29,19 +29,16 @@ namespace Vicuna.Storage
 
         internal StorageSlice LastUsedSlice => _lastUsedSlice ?? (_lastUsedSlice = GetSlice());
 
-        internal StorageSpaceUsageEntry Usage => _usage;
+        internal StorageSpaceEntry Usage => _usage;
 
-        public StorageSegment(
-            StoragePage storagePage,
-            StorageSliceHandling sliceHandling
-        )
+        public StorageSegment(StoragePage storagePage, StorageSliceManager sliceHandling)
         {
             _storagePage = storagePage;
             _sliceHandling = sliceHandling;
             _freeSlices = new Queue<long>();
             _fullSlices = new HashSet<long>();
-            _usage = new StorageSpaceUsageEntry();
-            _notFullSlices = new ConcurrentDictionary<long, StorageSpaceUsageEntry>();
+            _usage = new StorageSpaceEntry();
+            _notFullSlices = new ConcurrentDictionary<long, StorageSpaceEntry>();
 
             for (var i = 0; i < _storagePage.ItemCount; i++)
             {
@@ -102,7 +99,7 @@ namespace Vicuna.Storage
             {
                 _lastUsedSlice = null;
                 _fullSlices.Add(storageSlice.StroageSlicePage.PagePos);
-                _notFullSlices.TryRemove(storageSlice.Loc, out var _);
+                _notFullSlices.TryRemove(storageSlice.StroageSlicePage.PagePos, out var _);
             }
             else
             {
@@ -170,7 +167,7 @@ namespace Vicuna.Storage
             {
                 _lastUsedSlice = null;
                 _fullSlices.Add(storageSlice.StroageSlicePage.PagePos);
-                _notFullSlices.TryRemove(storageSlice.Loc, out var _);
+                _notFullSlices.TryRemove(storageSlice.StroageSlicePage.PagePos, out var _);
             }
             else
             {
@@ -190,7 +187,7 @@ namespace Vicuna.Storage
 
             if (_notFullSlices.Count + _fullSlices.Count < 512)
             {
-                var slice = _sliceHandling.AllocateSlice();
+                var slice = _sliceHandling.Allocate();
 
                 _notFullSlices[slice.StroageSlicePage.PagePos] = slice.Usage;
 
@@ -200,16 +197,16 @@ namespace Vicuna.Storage
             return null;
         }
 
-        internal IEnumerable<StorageSpaceUsageEntry> GetSlices()
+        internal IEnumerable<StorageSpaceEntry> GetSlices()
         {
             foreach (var item in _fullSlices)
             {
-                yield return new StorageSpaceUsageEntry(item, 0);
+                yield return new StorageSpaceEntry(item, 0);
             }
 
             foreach (var item in _freeSlices)
             {
-                yield return new StorageSpaceUsageEntry(item);
+                yield return new StorageSpaceEntry(item);
             }
 
             foreach (var item in _notFullSlices)

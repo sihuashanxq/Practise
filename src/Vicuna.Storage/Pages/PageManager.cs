@@ -24,11 +24,6 @@ namespace Vicuna.Storage.Pages
             {
                 Lock();
 
-                if (Pager.MaxAllocatedPage + 1 > Pager.Count)
-                {
-                    ExpandPagerCapacity();
-                }
-
                 return Pager.Create();
             }
 
@@ -68,15 +63,5 @@ namespace Vicuna.Storage.Pages
                 UnLock();
             }
         }
-
-        public void ExpandPagerCapacity()
-        {
-            Lock();
-            Pager.Dispose();
-            Pager = CreatePager((long)(Pager.Count * Pager.PageSize * 1.2));
-            UnLock();
-        }
-
-        protected abstract Pager CreatePager(long length);
     }
 }

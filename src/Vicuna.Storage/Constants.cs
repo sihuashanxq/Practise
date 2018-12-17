@@ -26,7 +26,7 @@
 
         public const short PageSize = (short)Kb * 16;
 
-        public const long InitFileSize = Kb * Kb * 64;
+        public const long InitFileSize = Kb * Kb * Kb * 10;
 
         public const long StroageSlicePageCount = Kb;
 

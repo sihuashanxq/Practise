@@ -4,6 +4,7 @@ using System.IO;
 using Vicuna.Storage.Trees;
 using System.Collections.Generic;
 using Vicuna.Storage.Pages.MMap;
+using Vicuna.Storage.Pages;
 
 namespace Vicuna.Storage
 {
@@ -15,13 +16,14 @@ namespace Vicuna.Storage
 
             for (var i = 0; i < 1024; i++)
             {
-                slicePage.AddEntry(i, new StorageSpaceUsageEntry(1024 + i, 64));
+                slicePage.SetEntry(i, new StorageSpaceEntry(1024 + i, 64));
             }
 
-            var pp = new MemoryMappedFilePageManager(new FileStream(@"1.txt", FileMode.OpenOrCreate)).Pager;
-            var yx = new StorageSliceHandling(pp);
+            var pp = new StorageFilePager(0, new StorageFile(new FileStream(@"1.txt", FileMode.OpenOrCreate)));
 
-            var yx2 = new StorageSegmentHandling(yx);
+            var yx = new StorageSliceManager(pp);
+
+            var yx2 = new StorageSegmentManager(yx);
             //var slice = yx.AllocateSlice();
             var segment = yx2.Allocate();
 
@@ -36,13 +38,19 @@ namespace Vicuna.Storage
             {
 
             }
-            var xs = new List<AllocationBuffer>();
-
-            for (var i = 0; i < 16 * 1000; i++)
+            var buffers = new List<AllocationBuffer>();
+            var st = new Stopwatch();
+            st.Start();
+            for (var i = 0; i < 1000000; i++)
             {
-                segment.Allocate(1024, out buffer);
-                xs.Add(buffer);
+                if (segment.Allocate(128, out buffer))
+                {
+                    buffers.Add(buffer);
+                }
             }
+
+            st.Stop();
+            Console.WriteLine(st.ElapsedMilliseconds);
         }
     }
 }

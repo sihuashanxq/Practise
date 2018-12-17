@@ -3,13 +3,15 @@ using Vicuna.Storage.Pages;
 
 namespace Vicuna.Storage
 {
-    public class StorageSliceHandling
+    public class StorageSliceManager
     {
         private Pager _pager;
 
+        public StorageSliceFreeHandling SliceFreeeHandling { get; }
+
         public const int SlicePageCount = 1024;
 
-        public StorageSliceHandling(Pager pager)
+        public StorageSliceManager(Pager pager)
         {
             _pager = pager;
         }
@@ -25,7 +27,7 @@ namespace Vicuna.Storage
             return new StorageSlice(new StorageSlicePage(buffer), _pager);
         }
 
-        public unsafe StorageSlice AllocateSlice()
+        public unsafe StorageSlice Allocate()
         {
             var slicePagePos = _pager.Create(SlicePageCount);
             if (slicePagePos == -1)
@@ -43,7 +45,7 @@ namespace Vicuna.Storage
             fixed (byte* buffer = page)
             {
                 var header = (PageHeader*)buffer;
-                var entry = (StorageSliceSpaceUsageEntry*)&buffer[Constants.PageHeaderSize];
+                var entry = (StorageSliceSpaceEntry*)&buffer[Constants.PageHeaderSize];
 
                 header->PagePos = slicePagePos;
                 header->FreeSize = 0;

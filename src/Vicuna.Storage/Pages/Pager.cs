@@ -4,10 +4,6 @@ namespace Vicuna.Storage.Pages
 {
     public abstract class Pager : IDisposable
     {
-        public virtual long Count { get; }
-
-        public virtual long Length { get; }
-
         public virtual int PageSize { get; }
 
         public virtual long MaxAllocatedPage { get; }

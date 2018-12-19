@@ -21,7 +21,7 @@ namespace Vicuna.Storage
 
             var pp = new StorageFilePager(0, new StorageFile(new FileStream(@"1.txt", FileMode.OpenOrCreate)));
 
-            var yx = new StorageSliceManager(pp);
+            var yx = new StorageSliceManager(null);
 
             var yx2 = new StorageSegmentManager(yx);
             //var slice = yx.AllocateSlice();

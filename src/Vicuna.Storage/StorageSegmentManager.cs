@@ -1,11 +1,13 @@
 ﻿using System;
 using Vicuna.Storage.Pages;
+using Vicuna.Storage.Transactions;
 
 namespace Vicuna.Storage
 {
-
     public class StorageSegmentManager
     {
+        public StorageLevelTransaction _tx;
+
         private readonly StorageSliceManager _sliceManager;
 
         public StorageSegmentManager(StorageSliceManager sliceManager)

@@ -1,85 +1,42 @@
-﻿using System.Collections.Concurrent;
-using System.Linq;
-using Vicuna.Storage.Pages;
-
-namespace Vicuna.Storage
+﻿namespace Vicuna.Storage.Transactions
 {
-    public class StorageFilePageManager
+    public class StorageLevelTransaction
     {
-        public long AllocatePage(int pageCount)
+        internal StorageLevelTransactionPageBuffer PageBuffer { get; }
+
+        public StorageLevelTransaction(StorageLevelTransactionPageBuffer pageBuffer)
         {
-            return -1;
+            PageBuffer = pageBuffer;
         }
 
-        public void WritePage(long pageOffset, byte[] buffer)
+        public long AllocatePage()
         {
-
-        }
-    }
-
-    public class StroageLevelTransaction
-    {
-        private readonly ConcurrentDictionary<long, Page> _cachedPages;
-
-        private readonly ConcurrentDictionary<long, Page> _modifiedPages;
-
-        private readonly ConcurrentDictionary<long, Page> _allocatedPages;
-
-        public StroageLevelTransaction()
-        {
-            _cachedPages = new ConcurrentDictionary<long, Page>();
-            _modifiedPages = new ConcurrentDictionary<long, Page>();
-            _allocatedPages = new ConcurrentDictionary<long, Page>();
+            return PageBuffer.AllocatePage();
         }
 
-        public Page GetPage(long pos)
+        public long[] AllocatePage(int pageCount)
         {
-            if (_modifiedPages.TryGetValue(pos, out var modifiedPage))
+            return PageBuffer.AllocatePage(pageCount);
+        }
+
+        public byte[] GetPage(long pageOffset)
+        {
+            if (PageBuffer.TryGetPage(pageOffset, out var pageContent))
             {
-                return modifiedPage;
-            }
-
-            if (_allocatedPages.TryGetValue(pos, out var allcoatedPage))
-            {
-                return allcoatedPage;
+                return pageContent;
             }
 
             return null;
-            //return _cachedPages.GetOrAdd(pos, k => _snapshotPager.GetPage(pos));
         }
 
-        public Page GetPageToModify(long pos)
+        public byte[] GetPageToModify(long pageOffset)
         {
-            return _modifiedPages.GetOrAdd(pos, k => GetPage(pos));
-        }
-
-        public bool AllocatePage(out Page page)
-        {
-            if (!AllocatePage(1, out var pages))
+            if (PageBuffer.TryGetPageToModify(pageOffset, out var pageContent))
             {
-                page = null;
-                return false;
+                return pageContent;
             }
 
-            page = pages.First();
-            return true;
-        }
-
-        public bool AllocatePage(int pageCount, out Page[] pages)
-        {
-            pages = null;
-            //if (!LastUsedSegment.AllocatePage(pageCount, out pages))
-            //{
-            //    pages = null;
-            //    return false;
-            //}
-
-            //foreach (var page in pages)
-            //{
-            //    _allocatedPages.TryAdd(page.PagePos, page);
-            //}
-
-            return true;
+            return null;
         }
     }
 }

@@ -16,8 +16,6 @@ namespace Vicuna.Storage.Pages
 
         public abstract byte[] GetBuffer(long pos);
 
-        public abstract void FreePage(Page page);
-
         public virtual void Dispose()
         {
 

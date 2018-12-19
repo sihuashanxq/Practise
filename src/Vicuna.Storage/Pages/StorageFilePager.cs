@@ -55,11 +55,6 @@ namespace Vicuna.Storage.Pages.MMap
             return pos;
         }
 
-        public override void FreePage(Page page)
-        {
-            throw new NotImplementedException();
-        }
-
         public override Page GetPage(long pos)
         {
             return new Page(GetBuffer(pos));

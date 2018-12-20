@@ -16,37 +16,44 @@ namespace Vicuna.Storage
 
             for (var i = 0; i < 1024; i++)
             {
-                slicePage.SetEntry(i, new StorageSpaceEntry(1024 + i, 64));
+                slicePage.SetEntry(64 + (i * 10), new StorageSpaceEntry(1024 + i, 64));
             }
 
-            var pp = new StorageFilePager(0, new StorageFile(new FileStream(@"1.txt", FileMode.OpenOrCreate)));
+            var pp = new StorageFilePager(0, new StorageFile(new FileStream(@"2.txt", FileMode.OpenOrCreate)));
 
-            var yx = new StorageSliceManager(null);
+            //var yx = new StorageSliceManager(null);
 
-            var yx2 = new StorageSegmentManager(yx);
-            //var slice = yx.AllocateSlice();
-            var segment = yx2.Allocate();
+            //var yx2 = new StorageSegmentManager(yx);
+            ////var slice = yx.AllocateSlice();
+            //var segment = yx2.Allocate();
 
-            AllocationBuffer buffer = null;
+            //AllocationBuffer buffer = null;
 
-            try
-            {
-                //var x = slice.Allocate(160, out buffer);
-                //var y = slice.Allocate(160, out buffer);
-            }
-            catch (Exception e)
-            {
+            //try
+            //{
+            //    //var x = slice.Allocate(160, out buffer);
+            //    //var y = slice.Allocate(160, out buffer);
+            //}
+            //catch (Exception e)
+            //{
 
-            }
+            //}
             var buffers = new List<AllocationBuffer>();
             var st = new Stopwatch();
+            var tx = new Transactions.StorageLevelTransaction(new Transactions.StorageLevelTransactionPageBuffer(
+                pp
+                ));
+            var sliceManager = new StorageSliceManager(tx);
+            var slice = sliceManager.Allocate();
+
             st.Start();
-            for (var i = 0; i < 1000000; i++)
+            for (var i = 0; i < 100; i++)
             {
-                if (segment.Allocate(128, out buffer))
-                {
-                    buffers.Add(buffer);
-                }
+                slice.Allocate(1024, out var xxx);
+                //if (segment.Allocate(128, out buffer))
+                //{
+                //    buffers.Add(buffer);
+                //}
             }
 
             st.Stop();

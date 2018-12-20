@@ -25,7 +25,7 @@ namespace Vicuna.Storage
                 throw new NullReferenceException(nameof(buffer));
             }
 
-            return new StorageSlice(new StorageSlicePage(buffer), null);
+            return new StorageSlice(_tx, new StorageSlicePage(buffer));
         }
 
         public unsafe StorageSlice Allocate()
@@ -65,7 +65,7 @@ namespace Vicuna.Storage
                 }
             }
 
-            return new StorageSlice(new StorageSlicePage(sliceHeadPage), null);
+            return new StorageSlice(_tx, new StorageSlicePage(sliceHeadPage));
         }
     }
 }

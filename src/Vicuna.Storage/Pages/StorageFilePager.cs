@@ -4,13 +4,13 @@ using System.IO;
 
 namespace Vicuna.Storage.Pages.MMap
 {
-    public class StorageFilePager : Pager
+    public class StorageFilePager : StoragePageManager
     {
         private long _maxAllocatedPage;
 
-        public override long MaxAllocatedPage => _maxAllocatedPage;
+        public virtual long MaxAllocatedPage => _maxAllocatedPage;
 
-        public override int PageSize { get; } = Constants.PageSize;
+        public virtual int PageSize { get; } = Constants.PageSize;
 
         public StorageFile StorageFile { get; }
 
@@ -23,7 +23,7 @@ namespace Vicuna.Storage.Pages.MMap
             Pages = new Dictionary<long, byte[]>();
         }
 
-        public unsafe override Page Create()
+        public unsafe virtual Page Create()
         {
             var buffer = new byte[PageSize];
 
@@ -48,19 +48,19 @@ namespace Vicuna.Storage.Pages.MMap
             }
         }
 
-        public override long Create(int count)
+        public virtual long Create(int count)
         {
             var pos = _maxAllocatedPage;
             _maxAllocatedPage += count;
             return pos;
         }
 
-        public override Page GetPage(long pos)
+        public virtual Page GetPage(long pos)
         {
             return new Page(GetBuffer(pos));
         }
 
-        public unsafe override byte[] GetBuffer(long pageOffset)
+        public unsafe virtual byte[] GetBuffer(long pageOffset)
         {
             if (pageOffset < 0)
             {
@@ -111,10 +111,42 @@ namespace Vicuna.Storage.Pages.MMap
             return content.Length;
         }
 
-        public override void Dispose()
+        public virtual void Dispose()
         {
             //flush
             StorageFile.Dispose();
+        }
+
+        public override long Allocate()
+        {
+            return Allocate(1)[0];
+        }
+
+        public override long[] Allocate(int pageCount)
+        {
+            var start = Create(pageCount);
+            var rets = new long[pageCount];
+            for (var i = 0; i < pageCount; i++)
+            {
+                rets[i] = start + i;
+            }
+
+            return rets;
+        }
+
+        public override byte[] GetPageContent(long pageOffset)
+        {
+            return GetPage(pageOffset).Buffer;
+        }
+
+        public override void FreePage(Page page)
+        {
+            throw new NotImplementedException();
+        }
+
+        public override void FreePage(byte[] pageContent)
+        {
+            throw new NotImplementedException();
         }
     }
 }

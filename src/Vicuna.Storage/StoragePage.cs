@@ -3,11 +3,10 @@ using Vicuna.Storage.Pages;
 
 namespace Vicuna.Storage
 {
-    public class StoragePage : Page
+    public unsafe class StoragePage : Page
     {
         public StoragePage(byte[] buffer) : base(buffer)
         {
-
         }
 
         public virtual unsafe StorageSpaceEntry GetEntry(int offset)

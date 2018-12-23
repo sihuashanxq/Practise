@@ -25,14 +25,14 @@ namespace Vicuna.Storage
     }
 
     [StructLayout(LayoutKind.Explicit, Pack = 1, Size = 10)]
-    internal struct StorageSliceSpaceEntry
+    public struct StorageSliceSpaceUsage
     {
         public const int SizeOf = 10;
 
         [FieldOffset(0)]
-        public long Pos;
+        public long PageOffset;
 
         [FieldOffset(8)]
-        public short UsedSize;
+        public short UsedLength;
     }
 }

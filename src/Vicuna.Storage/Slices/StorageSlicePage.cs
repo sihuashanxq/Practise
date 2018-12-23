@@ -28,7 +28,7 @@ namespace Vicuna.Storage
             {
                 throw new IndexOutOfRangeException(nameof(offset));
             }
-      
+
             fixed (byte* buffer = &Buffer[offset])
             {
                 *(long*)buffer = entry.Pos;

@@ -30,7 +30,7 @@ namespace Vicuna.Storage
 
         public unsafe StorageSlice Allocate()
         {
-            var slicePages = _tx.AllocatePage(SlicePageCount);
+            var slicePages = _tx.AllocatePageFromBuffer(SlicePageCount);
             if (slicePages == null)
             {
                 throw new NullReferenceException(nameof(slicePages));
@@ -47,7 +47,7 @@ namespace Vicuna.Storage
             fixed (byte* buffer = sliceHeadPage)
             {
                 var header = (PageHeader*)buffer;
-                var entry = (StorageSliceSpaceEntry*)&buffer[Constants.PageHeaderSize];
+                var entry = (StorageSliceSpaceUsage*)&buffer[Constants.PageHeaderSize];
 
                 header->PagePos = sliceHeadPageOffset;
                 header->FreeSize = 0;
@@ -60,8 +60,8 @@ namespace Vicuna.Storage
 
                 for (var i = 0; i < SlicePageCount; i++)
                 {
-                    entry[i].Pos = sliceHeadPageOffset + i;
-                    entry[i].UsedSize = i == 0 ? Constants.PageSize : Constants.PageHeaderSize;
+                    entry[i].PageOffset = sliceHeadPageOffset + i;
+                    entry[i].UsedLength = i == 0 ? Constants.PageSize : Constants.PageHeaderSize;
                 }
             }
 

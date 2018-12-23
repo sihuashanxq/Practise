@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
@@ -183,7 +184,7 @@ namespace Vicuna.Storage
         {
             for (var i = 0; i < 1024; i++)
             {
-                var entryOffset = Constants.PageHeaderSize + i * StorageSliceSpaceEntry.SizeOf;
+                var entryOffset = Constants.PageHeaderSize + i * StorageSliceSpaceUsage.SizeOf;
                 var usageEntry = _storageSlicePage.GetEntry(entryOffset);
                 if (usageEntry.UsedSize == Constants.PageSize)
                 {
@@ -212,21 +213,21 @@ namespace Vicuna.Storage
 
             foreach (var item in _fullPages)
             {
-                offset += StorageSliceSpaceEntry.SizeOf;
+                offset += StorageSliceSpaceUsage.SizeOf;
                 slicePage.SetEntry(offset, new StorageSpaceEntry(item, Constants.PageSize));
                 index++;
             }
 
             foreach (var item in _notFullPages)
             {
-                offset += StorageSliceSpaceEntry.SizeOf;
+                offset += StorageSliceSpaceUsage.SizeOf;
                 slicePage.SetEntry(offset, item.Value);
                 index++;
             }
 
             foreach (var item in _freePages)
             {
-                offset += StorageSliceSpaceEntry.SizeOf;
+                offset += StorageSliceSpaceUsage.SizeOf;
                 slicePage.SetEntry(offset, new StorageSpaceEntry(item));
                 index++;
             }

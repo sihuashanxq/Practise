@@ -2,26 +2,31 @@
 {
     public class StorageLevelTransaction
     {
-        internal StorageLevelTransactionPageBuffer PageBuffer { get; }
+        internal StorageSlice Slice { get; }
 
-        public StorageLevelTransaction(StorageLevelTransactionPageBuffer pageBuffer)
+        internal StorageSliceManager SliceManager { get; }
+
+        internal StorageLevelTransactionPageBuffer Buffer { get; }
+
+        public StorageLevelTransaction(StorageLevelTransactionPageBuffer buffer)
         {
-            PageBuffer = pageBuffer;
+            Buffer = buffer;
         }
 
-        public long AllocatePage()
+        public bool AllocatePageFromSlice(out byte[] page)
         {
-            return PageBuffer.AllocatePage();
+            page = null;
+            return false;
         }
 
-        public long[] AllocatePage(int pageCount)
+        public long[] AllocatePageFromBuffer(int pageCount)
         {
-            return PageBuffer.AllocatePage(pageCount);
+            return Buffer.AllocatePage(pageCount);
         }
 
         public byte[] GetPage(long pageOffset)
         {
-            if (PageBuffer.TryGetPage(pageOffset, out var pageContent))
+            if (Buffer.TryGetPage(pageOffset, out var pageContent))
             {
                 return pageContent;
             }
@@ -31,7 +36,7 @@
 
         public byte[] GetPageToModify(long pageOffset)
         {
-            if (PageBuffer.TryGetPageToModify(pageOffset, out var pageContent))
+            if (Buffer.TryGetPageToModify(pageOffset, out var pageContent))
             {
                 return pageContent;
             }

@@ -31,9 +31,9 @@ namespace Vicuna.Storage.Pages.MMap
             {
                 var header = (PageHeader*)pointer;
 
-                header->PagePos = _maxAllocatedPage;
-                header->PrePagePos = -1;
-                header->NextPagePos = -1;
+                header->PageOffset = _maxAllocatedPage;
+                header->PrePageOffset = -1;
+                header->NextPageOffset = -1;
                 header->FreeSize = Constants.PageSize - Constants.PageHeaderSize;
                 header->PageSize = Constants.PageSize;
                 header->ItemCount = 0;
@@ -42,7 +42,7 @@ namespace Vicuna.Storage.Pages.MMap
 
                 _maxAllocatedPage++;
 
-                Pages[header->PagePos] = buffer;
+                Pages[header->PageOffset] = buffer;
 
                 return new Page(buffer);
             }
@@ -90,9 +90,9 @@ namespace Vicuna.Storage.Pages.MMap
                 var header = (PageHeader*)pointer;
                 if (header->ModifiedCount == 0)
                 {
-                    header->PagePos = pageOffset;
-                    header->PrePagePos = -1;
-                    header->NextPagePos = -1;
+                    header->PageOffset = pageOffset;
+                    header->PrePageOffset = -1;
+                    header->NextPageOffset = -1;
                     header->FreeSize = Constants.PageSize - Constants.PageHeaderSize;
                     header->PageSize = Constants.PageSize;
                     header->ItemCount = 0;

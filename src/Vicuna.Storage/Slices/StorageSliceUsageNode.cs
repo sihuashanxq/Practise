@@ -7,21 +7,34 @@ namespace Vicuna.Storage
 {
     public unsafe class StorageSliceUsageNode
     {
-        private readonly byte[] _pageContent;
+        private readonly byte[] _nodePage;
 
-        public StorageSliceUsageNode(byte[] pageContent)
+        public StorageSliceUsageNode(byte[] nodePage)
         {
-            _pageContent = pageContent;
+            _nodePage = nodePage;
         }
 
-        public PageHeader PageHeader
+        public short Count
         {
             get
             {
-                fixed (byte* buffer = _pageContent)
-                {
-                    return *(PageHeader*)buffer;
-                }
+                fixed (byte* buffer = _nodePage) return ((PageHeader*)buffer)->ItemCount;
+            }
+        }
+
+        public bool IsFull
+        {
+            get
+            {
+                fixed (byte* buffer = _nodePage) return ((PageHeader*)buffer)->ItemCount == 1024;
+            }
+        }
+
+        public bool IsEmpty
+        {
+            get
+            {
+                fixed (byte* buffer = _nodePage) return ((PageHeader*)buffer)->ItemCount == 0;
             }
         }
 
@@ -29,17 +42,11 @@ namespace Vicuna.Storage
         {
             get
             {
-                fixed (byte* buffer = _pageContent)
-                {
-                    return ((PageHeader*)buffer)->PagePos;
-                }
+                fixed (byte* buffer = _nodePage) return ((PageHeader*)buffer)->PageOffset;
             }
             set
             {
-                fixed (byte* buffer = _pageContent)
-                {
-                    ((PageHeader*)buffer)->PagePos = value;
-                }
+                fixed (byte* buffer = _nodePage) ((PageHeader*)buffer)->PageOffset = value;
             }
         }
 
@@ -47,17 +54,11 @@ namespace Vicuna.Storage
         {
             get
             {
-                fixed (byte* buffer = _pageContent)
-                {
-                    return ((PageHeader*)buffer)->PrePagePos;
-                }
+                fixed (byte* buffer = _nodePage) return ((PageHeader*)buffer)->PrePageOffset;
             }
             set
             {
-                fixed (byte* buffer = _pageContent)
-                {
-                    ((PageHeader*)buffer)->PrePagePos = value;
-                }
+                fixed (byte* buffer = _nodePage) ((PageHeader*)buffer)->PrePageOffset = value;
             }
         }
 
@@ -65,28 +66,11 @@ namespace Vicuna.Storage
         {
             get
             {
-                fixed (byte* buffer = _pageContent)
-                {
-                    return ((PageHeader*)buffer)->NextPagePos;
-                }
+                fixed (byte* buffer = _nodePage) return ((PageHeader*)buffer)->NextPageOffset;
             }
             set
             {
-                fixed (byte* buffer = _pageContent)
-                {
-                    ((PageHeader*)buffer)->NextPagePos = value;
-                }
-            }
-        }
-
-        public short Count
-        {
-            get
-            {
-                fixed (byte* buffer = _pageContent)
-                {
-                    return ((PageHeader*)buffer)->ItemCount;
-                }
+                fixed (byte* buffer = _nodePage) ((PageHeader*)buffer)->NextPageOffset = value;
             }
         }
 
@@ -94,7 +78,7 @@ namespace Vicuna.Storage
         {
             get
             {
-                fixed (byte* buffer = _pageContent)
+                fixed (byte* buffer = _nodePage)
                 {
                     var pageHead = (PageHeader*)buffer;
                     var entryPointer = (StorageSliceSpaceUsage*)buffer[Constants.PageHeaderSize];
@@ -103,7 +87,7 @@ namespace Vicuna.Storage
                     {
                         Index = 0,
                         Usage = *entryPointer,
-                        OwnerOffset = pageHead->PagePos
+                        OwnerOffset = pageHead->PageOffset
                     };
                 }
             }
@@ -113,7 +97,7 @@ namespace Vicuna.Storage
         {
             get
             {
-                fixed (byte* buffer = _pageContent)
+                fixed (byte* buffer = _nodePage)
                 {
                     var pageHead = (PageHeader*)buffer;
                     var entryPointer = (StorageSliceSpaceUsage*)buffer[Constants.PageHeaderSize];
@@ -122,30 +106,8 @@ namespace Vicuna.Storage
                     {
                         Index = pageHead->ItemCount - 1,
                         Usage = entryPointer[pageHead->ItemCount - 1],
-                        OwnerOffset = pageHead->PagePos
+                        OwnerOffset = pageHead->PageOffset
                     };
-                }
-            }
-        }
-
-        public bool IsFull
-        {
-            get
-            {
-                fixed (byte* buffer = _pageContent)
-                {
-                    return ((PageHeader*)buffer)->ItemCount == 1024;
-                }
-            }
-        }
-
-        public bool IsEmpty
-        {
-            get
-            {
-                fixed (byte* buffer = _pageContent)
-                {
-                    return ((PageHeader*)buffer)->ItemCount == 0;
                 }
             }
         }
@@ -157,7 +119,7 @@ namespace Vicuna.Storage
                 throw new IndexOutOfRangeException(nameof(index));
             }
 
-            fixed (byte* buffer = _pageContent)
+            fixed (byte* buffer = _nodePage)
             {
                 var count = Count;
                 var pageHead = (PageHeader*)buffer;
@@ -176,7 +138,7 @@ namespace Vicuna.Storage
 
         public void Insert(StorageSliceSpaceUsage usage)
         {
-            fixed (byte* buffer = _pageContent)
+            fixed (byte* buffer = _nodePage)
             {
                 var index = 0;
                 var pageHead = (PageHeader*)buffer;
@@ -202,7 +164,7 @@ namespace Vicuna.Storage
 
         public void Update(StorageSliceSpaceEntry entry)
         {
-            fixed (byte* buffer = _pageContent)
+            fixed (byte* buffer = _nodePage)
             {
                 var pageHead = (PageHeader*)buffer;
                 var entryPointer = (StorageSliceSpaceUsage*)&buffer[Constants.PageHeaderSize];
@@ -249,11 +211,23 @@ namespace Vicuna.Storage
             }
         }
 
+        public void InitializeNodePage()
+        {
+            fixed (byte* buffer = _nodePage)
+            {
+                var pageHead = (PageHeader*)buffer;
+
+                pageHead->ItemCount = 0;
+                pageHead->ModifiedCount = 0;
+                pageHead->FreeSize = 0;
+            }
+        }
+
         public List<StorageSliceSpaceUsage> GetEntries()
         {
             var entries = new List<StorageSliceSpaceUsage>();
 
-            fixed (byte* buffer = _pageContent)
+            fixed (byte* buffer = _nodePage)
             {
                 var pageHead = (PageHeader*)buffer;
                 var entryPointer = (StorageSliceSpaceUsage*)&buffer[Constants.PageHeaderSize];

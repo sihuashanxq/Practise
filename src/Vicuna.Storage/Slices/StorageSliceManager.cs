@@ -4,13 +4,13 @@ using Vicuna.Storage.Transactions;
 
 namespace Vicuna.Storage
 {
-    public class StorageSliceManager
+    public unsafe class StorageSliceManager
     {
         private readonly StorageLevelTransaction _tx;
 
         public StorageSliceFreeHandling SliceFreeeHandling { get; }
 
-        public const int SlicePageCount = 1024;
+        public const int PageCount = 1024;
 
         public StorageSliceManager(StorageLevelTransaction tx)
         {
@@ -28,9 +28,9 @@ namespace Vicuna.Storage
             return new StorageSlice(_tx, new StorageSlicePage(buffer));
         }
 
-        public unsafe StorageSlice Allocate()
+        public StorageSlice Allocate()
         {
-            var slicePages = _tx.AllocatePageFromBuffer(SlicePageCount);
+            var slicePages = _tx.AllocatePageFromBuffer(PageCount);
             if (slicePages == null)
             {
                 throw new NullReferenceException(nameof(slicePages));
@@ -49,16 +49,16 @@ namespace Vicuna.Storage
                 var header = (PageHeader*)buffer;
                 var entry = (StorageSliceSpaceUsage*)&buffer[Constants.PageHeaderSize];
 
-                header->PagePos = sliceHeadPageOffset;
+                header->PageOffset = sliceHeadPageOffset;
                 header->FreeSize = 0;
-                header->PrePagePos = -1;
-                header->NextPagePos = -1;
-                header->ItemCount = SlicePageCount;
+                header->PrePageOffset = -1;
+                header->NextPageOffset = -1;
+                header->ItemCount = PageCount;
                 header->PageSize = Constants.PageSize;
                 header->LastUsedPos = Constants.PageSize - 1;
                 header->ModifiedCount += Constants.PageSize;
 
-                for (var i = 0; i < SlicePageCount; i++)
+                for (var i = 0; i < PageCount; i++)
                 {
                     entry[i].PageOffset = sliceHeadPageOffset + i;
                     entry[i].UsedLength = i == 0 ? Constants.PageSize : Constants.PageHeaderSize;

@@ -8,9 +8,9 @@ using Vicuna.Storage.Transactions;
 
 namespace Vicuna.Storage
 {
-    public class StorageSlice : IDisposable
+    public unsafe class StorageSlice : IDisposable
     {
-        private Page _lastUsedPage;
+        private byte[] _lastUsedPage;
 
         private StorageSpaceEntry _usage;
 
@@ -24,7 +24,7 @@ namespace Vicuna.Storage
 
         private readonly ConcurrentDictionary<long, StorageSpaceEntry> _notFullPages;
 
-        internal Page LastUsedPage => _lastUsedPage ?? (_lastUsedPage = GetSliceUnUsedPage());
+        internal byte[] LastUsedPage => _lastUsedPage ?? (_lastUsedPage = GetSliceUnUsedPage());
 
         internal StorageSpaceEntry Usage => _usage;
 
@@ -41,45 +41,41 @@ namespace Vicuna.Storage
             InitializeSlicePageEntries();
         }
 
-        public bool AllocatePage(int pageCount, out Page[] pages)
+        public bool AllocatePage(out byte[] allocatedPage)
         {
-            if (_freePages.Count < pageCount)
+            if (_freePages.Count == 0)
             {
-                pages = null;
+                allocatedPage = null;
                 return false;
             }
 
-            pages = new Page[pageCount];
+            var pageOffset = _freePages.Dequeue();
+            var page = _tx.GetPageToModify(_freePages.Dequeue());
 
-            for (var i = pageCount - 1; i >= 0; i--)
-            {
-                var page = GetPage(_freePages.Dequeue());
-                if (page == null)
-                {
-                    throw new NullReferenceException(nameof(page));
-                }
-
-                pages[i] = page;
-
-                _fullPages.Add(page.PagePos);
-                _usage.UsedSize += Constants.PageSize - Constants.PageHeaderSize;
-            }
-
+            _fullPages.Add(pageOffset);
+            _usage.UsedSize += Constants.PageSize - Constants.PageHeaderSize;
+            allocatedPage = page;
             return true;
         }
 
-        public bool AllocatePage(out Page page)
+        public bool AllocatePage(int pageCount, List<byte[]> allocatedPages)
         {
-            if (_freePages.Count > 0)
+            if (_freePages.Count < pageCount)
             {
-                page = GetPage(_freePages.Dequeue()) ?? throw new NullReferenceException(nameof(page));
-                _fullPages.Add(page.PagePos);
-                _usage.UsedSize += Constants.PageSize - Constants.PageHeaderSize;
-                return true;
+                return false;
             }
 
-            page = null;
-            return false;
+            for (var i = 0; i < pageCount; i++)
+            {
+                if (AllocatePage(out var page))
+                {
+                    allocatedPages.Add(page);
+                }
+
+                throw new InvalidOperationException("allocate page faild!");
+            }
+
+            return true;
         }
 
         public bool Allocate(int size, out AllocationBuffer buffer)
@@ -96,13 +92,13 @@ namespace Vicuna.Storage
 
             foreach (var item in _notFullPages.Values.ToList())
             {
-                var page = GetPage(item.Pos);
-                if (page == null)
+                var pageContent = _tx.GetPage(item.Pos);
+                if (pageContent == null)
                 {
                     continue;
                 }
 
-                if (Allocate(page, (short)size, out buffer))
+                if (Allocate(pageContent, (short)size, out buffer))
                 {
                     return true;
                 }
@@ -123,61 +119,77 @@ namespace Vicuna.Storage
             return false;
         }
 
-        public bool Allocate(Page page, short size, out AllocationBuffer buffer)
+        public bool Allocate(byte[] pageContent, short size, out AllocationBuffer buffer)
         {
-            if (page == null || page.LastUsed + size > Constants.PageSize)
+            var pageHead = GetPageHeader(pageContent);
+            if (pageHead.LastUsedPos + size > Constants.PageSize)
             {
                 buffer = null;
                 return false;
             }
 
-            buffer = new AllocationBuffer(page, page.LastUsed, size);
-
-            page.FreeSize -= size;
-            page.LastUsed += size;
-            page.ItemCount += 1;
-            page.ModifiedCount += size;
-            page.FlushPageHeader();
-
-            if (page.FreeSize == 0)
+            var modifiedPage = _tx.GetPageToModify(pageHead.PageOffset);
+            if (modifiedPage == null)
             {
-                _lastUsedPage = null;
-                _lastUsedPage.LastUsed += size;
-                _fullPages.Add(page.PagePos);
-                _notFullPages.TryRemove(page.PagePos, out var _);
-                return true;
+                throw new NullReferenceException(nameof(modifiedPage));
             }
 
-            var entry = new StorageSpaceEntry(page.PagePos, Constants.PageSize - page.FreeSize);
+            fixed (byte* pagePointer = modifiedPage)
+            {
+                var modifiedPageHead = (PageHeader*)pagePointer;
+                var spaceEntry = new StorageSpaceEntry(modifiedPageHead->PageOffset, Constants.PageSize - modifiedPageHead->FreeSize);
+                if (modifiedPageHead->FreeSize - size <= 128)
+                {
+                    modifiedPageHead->FreeSize = 0;
+                    modifiedPageHead->LastUsedPos = Constants.PageSize - 1;
+                    modifiedPageHead->ItemCount++;
+                    modifiedPageHead->ModifiedCount += size;
 
-            _lastUsedPage = page;
-            _usage.UsedSize += size;
-            _notFullPages.AddOrUpdate(page.PagePos, entry, (k, v) => entry);
-            return true;
+                    _lastUsedPage = null;
+                    _fullPages.Add(modifiedPageHead->PageOffset);
+                    _notFullPages.TryRemove(modifiedPageHead->PageOffset, out var _);
+                }
+                else
+                {
+                    modifiedPageHead->FreeSize -= size;
+                    modifiedPageHead->LastUsedPos += size;
+                    modifiedPageHead->ItemCount++;
+                    modifiedPageHead->ModifiedCount += size;
+
+                    _lastUsedPage = null;
+                    _usage.UsedSize += size;
+                    _notFullPages.AddOrUpdate(modifiedPageHead->PageOffset, spaceEntry, (k, v) => spaceEntry);
+                }
+
+                buffer = new AllocationBuffer(modifiedPage, pageHead.LastUsedPos, size);
+                return true;
+            }
         }
 
-        protected Page GetSliceUnUsedPage()
+        protected byte[] GetSliceUnUsedPage()
         {
             if (_freePages.Count == 0)
             {
                 return null;
             }
 
-            var page = GetPage(_freePages.Dequeue());
-            if (page == null)
+            var pageOffset = _freePages.Dequeue();
+            var pageContent = _tx.GetPage(pageOffset);
+            if (pageContent != null)
             {
-                Console.WriteLine("dfsdfds");
-                return null;
+                _notFullPages.TryAdd(pageOffset, new StorageSpaceEntry(pageOffset, Constants.PageHeaderSize));
+                return pageContent;
             }
 
-            Console.WriteLine("dfsdfds22");
-            _notFullPages.TryAdd(page.PagePos, new StorageSpaceEntry(page.PagePos, Constants.PageHeaderSize));
-            return page;
+            return null;
         }
 
-        protected Page GetPage(long pos)
+        public PageHeader GetPageHeader(byte[] pageContent)
         {
-            return new Page(_tx.GetPageToModify(pos));
+            fixed (byte* pagePointer = pageContent)
+            {
+                return *(PageHeader*)pagePointer;
+            }
         }
 
         private void InitializeSlicePageEntries()

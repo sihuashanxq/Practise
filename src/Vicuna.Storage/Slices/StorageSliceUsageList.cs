@@ -25,6 +25,7 @@ namespace Vicuna.Storage
 
                 var newNode = new StorageSliceUsageNode(newNodePage);
 
+                newNode.InitializeNodePage();
                 newNode.Insert(usage);
                 newNode.PrePageOffset = -1;
                 newNode.NextPageOffset = _head.NextPageOffset;
@@ -60,11 +61,6 @@ namespace Vicuna.Storage
             var node = new StorageSliceUsageNode(ownerPage);
 
             node.Delete(entry.Index);
-
-            if (node.IsEmpty)
-            {
-                return;
-            }
         }
 
         public void Update(StorageSliceSpaceEntry entry)
@@ -121,9 +117,9 @@ namespace Vicuna.Storage
 
             public bool MoveNext()
             {
-                if (_current.PageHeader.NextPagePos != -1)
+                if (_current.NextPageOffset != -1)
                 {
-                    var pageContent = _tx.GetPage(_current.PageHeader.NextPagePos);
+                    var pageContent = _tx.GetPage(_current.NextPageOffset);
                     if (pageContent == null)
                     {
                         return false;

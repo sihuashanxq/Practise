@@ -25,8 +25,8 @@
         /// </summary>
         public long PagePos
         {
-            get => Header.PagePos;
-            set => Header.PagePos = value;
+            get => Header.PageOffset;
+            set => Header.PageOffset = value;
         }
 
         /// <summary>
@@ -34,8 +34,8 @@
         /// </summary>
         public long PrePagePos
         {
-            get => Header.PrePagePos;
-            set => Header.PrePagePos = value;
+            get => Header.PrePageOffset;
+            set => Header.PrePageOffset = value;
         }
 
         /// <summary>
@@ -43,8 +43,8 @@
         /// </summary>
         public long NextPagePos
         {
-            get => Header.NextPagePos;
-            set => Header.NextPagePos = value;
+            get => Header.NextPageOffset;
+            set => Header.NextPageOffset = value;
         }
 
         /// <summary>

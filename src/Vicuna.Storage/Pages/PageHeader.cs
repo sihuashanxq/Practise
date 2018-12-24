@@ -9,7 +9,7 @@ namespace Vicuna.Storage.Pages
         public byte Flag;
 
         [FieldOffset(1)]
-        public long PagePos;
+        public long PageOffset;
 
         [FieldOffset(9)]
         public int CheckSum;
@@ -24,10 +24,10 @@ namespace Vicuna.Storage.Pages
         public short ItemCount;
 
         [FieldOffset(19)]
-        public long PrePagePos;
+        public long PrePageOffset;
 
         [FieldOffset(27)]
-        public long NextPagePos;
+        public long NextPageOffset;
 
         [FieldOffset(35)]
         public short LastUsedPos;

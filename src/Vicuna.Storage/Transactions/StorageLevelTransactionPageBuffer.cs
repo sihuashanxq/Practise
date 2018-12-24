@@ -104,9 +104,9 @@ namespace Vicuna.Storage.Transactions
                 var header = (PageHeader*)pointer;
                 if (header->ModifiedCount == 0)
                 {
-                    header->PagePos = pageOffset;
-                    header->PrePagePos = -1;
-                    header->NextPagePos = -1;
+                    header->PageOffset = pageOffset;
+                    header->PrePageOffset = -1;
+                    header->NextPageOffset = -1;
                     header->FreeSize = Constants.PageSize - Constants.PageHeaderSize;
                     header->PageSize = Constants.PageSize;
                     header->ItemCount = 0;

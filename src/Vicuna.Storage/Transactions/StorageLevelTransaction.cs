@@ -2,7 +2,20 @@
 {
     public class StorageLevelTransaction
     {
-        internal StorageSlice Slice { get; }
+        private StorageSlice _slice;
+
+        internal StorageSlice Slice
+        {
+            get
+            {
+                if (_slice == null)
+                {
+                    _slice = SliceManager.Allocate();
+                }
+
+                return _slice;
+            }
+        }
 
         internal StorageSliceManager SliceManager { get; }
 
@@ -15,6 +28,11 @@
 
         public bool AllocatePageFromSlice(out byte[] page)
         {
+            if (!_slice.AllocatePage(out var x))
+            {
+
+            }
+
             page = null;
             return false;
         }

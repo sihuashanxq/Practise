@@ -50,7 +50,7 @@ namespace Vicuna.Storage
             st.Start();
             for (var i = 0; i < 1000; i++)
             {
-                x.Insert(new StorageSliceSpaceUsage() { PageOffset = i, UsedLength = (short)i });
+                x.Insert(new StorageSliceSpaceUsage() { PageOffset = i, UsedLength = (uint)i });
             }
 
             st.Stop();

@@ -1,66 +1,97 @@
 ﻿using System;
-using System.Collections;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.Linq;
 using Vicuna.Storage.Pages;
 using Vicuna.Storage.Transactions;
 
 namespace Vicuna.Storage
 {
-    public unsafe class StorageSlice : IDisposable
+    public unsafe class StorageSlice
     {
-        private byte[] _lastUsedPage;
+        private StorageSliceActivePageEntry _lastUsedPageEntry;
 
         private StorageSpaceEntry _usage;
 
-        private StoragePage _storageSlicePage;
-
-        private readonly Queue<long> _freePages;
-
-        private readonly HashSet<long> _fullPages;
+        private StorageSiceHeadPage _sliceHeadPage;
 
         private readonly StorageLevelTransaction _tx;
 
-        private readonly ConcurrentDictionary<long, StorageSpaceEntry> _notFullPages;
+        private readonly Queue<int> _freePageIndexs;
 
-        internal byte[] LastUsedPage => _lastUsedPage ?? (_lastUsedPage = GetSliceUnUsedPage());
+        private readonly HashSet<int> _fullPageIndexs;
 
-        internal StorageSpaceEntry Usage => _usage;
+        private readonly ConcurrentDictionary<int, StorageSliceSpaceUsage> _activePageIndexMapping;
 
-        internal StoragePage StroageSlicePage => _storageSlicePage;
+        internal StorageSliceActivePageEntry LastUsedPageEntry => _lastUsedPageEntry ?? (_lastUsedPageEntry = GetSliceUnUsedPage());
 
-        public StorageSlice(StorageLevelTransaction tx, StorageSlicePage storageSlicePage)
+        internal StorageSiceHeadPage SliceHeadPage => _sliceHeadPage;
+
+        public StorageSlice(StorageLevelTransaction tx, long sliceHeadPageOffset)
+            :this(tx,tx.GetPageToModify(sliceHeadPageOffset))
         {
-            _tx = tx;
-            _freePages = new Queue<long>();
-            _fullPages = new HashSet<long>();
-            _storageSlicePage = storageSlicePage;
-            _notFullPages = new ConcurrentDictionary<long, StorageSpaceEntry>();
-            _usage = new StorageSpaceEntry(storageSlicePage.PagePos);
-            InitializeSlicePageEntries();
+
         }
 
-        public bool AllocatePage(out byte[] allocatedPage)
+        public StorageSlice(StorageLevelTransaction tx, byte[] headPageContent)
         {
-            if (_freePages.Count == 0)
+            _tx = tx;
+            _freePageIndexs = new Queue<int>();
+            _fullPageIndexs = new HashSet<int>();
+            _activePageIndexMapping = new ConcurrentDictionary<int, StorageSliceSpaceUsage>();
+            _sliceHeadPage = new StorageSiceHeadPage(headPageContent);
+            BuildPageUsageEntries();
+        }
+
+        private void BuildPageUsageEntries()
+        {
+            var pageEntries = _sliceHeadPage.GetPageEntries();
+            if (pageEntries.Count == 0)
             {
-                allocatedPage = null;
+                throw new InvalidOperationException("slice page count error!");
+            }
+
+            for (var i = 0; i < pageEntries.Count; i++)
+            {
+                var pageEntry = pageEntries[i];
+                if (pageEntry.Usage.UsedLength == Constants.PageSize)
+                {
+                    _fullPageIndexs.Add(pageEntry.Index);
+                    _usage.UsedSize += pageEntry.Usage.UsedLength;
+                    continue;
+                }
+
+                if (pageEntry.Usage.UsedLength <= Constants.PageHeaderSize)
+                {
+                    _freePageIndexs.Enqueue(pageEntry.Index);
+                    _usage.UsedSize += Constants.PageHeaderSize;
+                    continue;
+                }
+
+                _activePageIndexMapping.TryAdd(pageEntry.Index, pageEntry.Usage);
+                _usage.UsedSize += pageEntry.Usage.UsedLength;
+            }
+        }
+
+        public bool AllocatePage(out byte[] page)
+        {
+            if (_freePageIndexs.Count == 0)
+            {
+                page = null;
                 return false;
             }
 
-            var pageOffset = _freePages.Dequeue();
-            var page = _tx.GetPageToModify(_freePages.Dequeue());
+            var pageOffset = _freePageIndexs.Dequeue();
+            page = _tx.GetPageToModify(pageOffset);
 
-            _fullPages.Add(pageOffset);
             _usage.UsedSize += Constants.PageSize - Constants.PageHeaderSize;
-            allocatedPage = page;
+            _fullPageIndexs.Add(pageOffset);
+
             return true;
         }
 
         public bool AllocatePage(int pageCount, List<byte[]> allocatedPages)
         {
-            if (_freePages.Count < pageCount)
+            if (_freePageIndexs.Count < pageCount)
             {
                 return false;
             }
@@ -85,20 +116,20 @@ namespace Vicuna.Storage
                 throw new ArgumentOutOfRangeException(nameof(size));
             }
 
-            if (Allocate(LastUsedPage, (short)size, out buffer))
+            if (Allocate(LastUsedPageEntry, (short)size, out buffer))
             {
                 return true;
             }
 
-            foreach (var item in _notFullPages.Values.ToList())
+            foreach (var item in _activePageIndexMapping)
             {
-                var pageContent = _tx.GetPage(item.Pos);
+                var pageContent = _tx.GetPage(item.Value.PageOffset);
                 if (pageContent == null)
                 {
                     continue;
                 }
 
-                if (Allocate(pageContent, (short)size, out buffer))
+                if (Allocate(new StorageSliceActivePageEntry(item.Key, pageContent), (short)size, out buffer))
                 {
                     return true;
                 }
@@ -112,23 +143,23 @@ namespace Vicuna.Storage
 
             if (Allocate(unUsedPage, (short)size, out buffer))
             {
-                _lastUsedPage = unUsedPage;
+                _lastUsedPageEntry = unUsedPage;
                 return true;
             }
 
             return false;
         }
 
-        public bool Allocate(byte[] pageContent, short size, out AllocationBuffer buffer)
+        public bool Allocate(StorageSliceActivePageEntry pageEntry, short size, out AllocationBuffer buffer)
         {
-            var pageHead = GetPageHeader(pageContent);
-            if (pageHead.LastUsedPos + size > Constants.PageSize)
+            var pageHeader = pageEntry.GetPageHeader();
+            if (pageHeader.LastUsedPos + size > Constants.PageSize)
             {
                 buffer = null;
                 return false;
             }
 
-            var modifiedPage = _tx.GetPageToModify(pageHead.PageOffset);
+            var modifiedPage = _tx.GetPageToModify(pageHeader.PageOffset);
             if (modifiedPage == null)
             {
                 throw new NullReferenceException(nameof(modifiedPage));
@@ -137,7 +168,12 @@ namespace Vicuna.Storage
             fixed (byte* pagePointer = modifiedPage)
             {
                 var modifiedPageHead = (PageHeader*)pagePointer;
-                var spaceEntry = new StorageSpaceEntry(modifiedPageHead->PageOffset, Constants.PageSize - modifiedPageHead->FreeSize);
+                var spaceEntry = new StorageSliceSpaceUsage()
+                {
+                    PageOffset = pageHeader.PageOffset,
+                    UsedLength = (uint)(Constants.PageSize - modifiedPageHead->FreeSize)
+                };
+
                 if (modifiedPageHead->FreeSize - size <= 128)
                 {
                     modifiedPageHead->FreeSize = 0;
@@ -145,9 +181,9 @@ namespace Vicuna.Storage
                     modifiedPageHead->ItemCount++;
                     modifiedPageHead->ModifiedCount += size;
 
-                    _lastUsedPage = null;
-                    _fullPages.Add(modifiedPageHead->PageOffset);
-                    _notFullPages.TryRemove(modifiedPageHead->PageOffset, out var _);
+                    _lastUsedPageEntry = null;
+                    _fullPageIndexs.Add(pageEntry.Index);
+                    _activePageIndexMapping.TryRemove(pageEntry.Index, out var _);
                 }
                 else
                 {
@@ -156,92 +192,67 @@ namespace Vicuna.Storage
                     modifiedPageHead->ItemCount++;
                     modifiedPageHead->ModifiedCount += size;
 
-                    _lastUsedPage = null;
+                    _lastUsedPageEntry = null;
                     _usage.UsedSize += size;
-                    _notFullPages.AddOrUpdate(modifiedPageHead->PageOffset, spaceEntry, (k, v) => spaceEntry);
+                    _activePageIndexMapping.AddOrUpdate(pageEntry.Index, spaceEntry, (k, v) => spaceEntry);
                 }
 
-                buffer = new AllocationBuffer(modifiedPage, pageHead.LastUsedPos, size);
+                buffer = new AllocationBuffer(modifiedPage, pageHeader.LastUsedPos, size);
                 return true;
             }
         }
 
-        protected byte[] GetSliceUnUsedPage()
+        protected StorageSliceActivePageEntry GetSliceUnUsedPage()
         {
-            if (_freePages.Count == 0)
+            if (_freePageIndexs.Count == 0)
             {
                 return null;
             }
 
-            var pageOffset = _freePages.Dequeue();
-            var pageContent = _tx.GetPage(pageOffset);
-            if (pageContent != null)
+            var pageIndex = _freePageIndexs.Dequeue();
+            if (pageIndex < 0)
             {
-                _notFullPages.TryAdd(pageOffset, new StorageSpaceEntry(pageOffset, Constants.PageHeaderSize));
-                return pageContent;
+                throw new IndexOutOfRangeException(nameof(pageIndex));
             }
 
-            return null;
+            var pageOffset = pageIndex + _sliceHeadPage.PagePos;
+            if (pageOffset < 0)
+            {
+                throw new IndexOutOfRangeException(nameof(pageOffset));
+            }
+
+            var pageContent = _tx.GetPage(pageIndex + _sliceHeadPage.PagePos);
+            if (pageContent == null)
+            {
+                return null;
+            }
+
+            var pageEntry = new StorageSliceActivePageEntry(pageIndex, pageContent);
+            var spaceUsage = new StorageSliceSpaceUsage(pageOffset, (uint)Constants.PageHeaderSize);
+
+            _activePageIndexMapping.AddOrUpdate(pageIndex, spaceUsage, (k, v) => spaceUsage);
+
+            return pageEntry;
+        }
+    }
+
+    public unsafe class StorageSliceActivePageEntry
+    {
+        public int Index { get; set; }
+
+        public byte[] PageContent { get; set; }
+
+        public StorageSliceActivePageEntry(int index, byte[] pageContent)
+        {
+            Index = index;
+            PageContent = pageContent;
         }
 
-        public PageHeader GetPageHeader(byte[] pageContent)
+        public PageHeader GetPageHeader()
         {
-            fixed (byte* pagePointer = pageContent)
+            fixed (byte* pagePointer = PageContent)
             {
                 return *(PageHeader*)pagePointer;
-            }
-        }
-
-        private void InitializeSlicePageEntries()
-        {
-            for (var i = 0; i < 1024; i++)
-            {
-                var entryOffset = Constants.PageHeaderSize + i * StorageSliceSpaceUsage.SizeOf;
-                var usageEntry = _storageSlicePage.GetEntry(entryOffset);
-                if (usageEntry.UsedSize == Constants.PageSize)
-                {
-                    _fullPages.Add(usageEntry.Pos);
-                    _usage.UsedSize += usageEntry.UsedSize;
-                    continue;
-                }
-
-                if (usageEntry.UsedSize <= Constants.PageHeaderSize)
-                {
-                    _freePages.Enqueue(usageEntry.Pos);
-                    _usage.UsedSize += Constants.PageHeaderSize;
-                    continue;
-                }
-
-                _notFullPages.TryAdd(usageEntry.Pos, usageEntry);
-                _usage.UsedSize += usageEntry.UsedSize;
-            }
-        }
-
-        public unsafe void Dispose()
-        {
-            var index = 0;
-            var offset = Constants.PageHeaderSize;
-            var slicePage = _storageSlicePage;
-
-            foreach (var item in _fullPages)
-            {
-                offset += StorageSliceSpaceUsage.SizeOf;
-                slicePage.SetEntry(offset, new StorageSpaceEntry(item, Constants.PageSize));
-                index++;
-            }
-
-            foreach (var item in _notFullPages)
-            {
-                offset += StorageSliceSpaceUsage.SizeOf;
-                slicePage.SetEntry(offset, item.Value);
-                index++;
-            }
-
-            foreach (var item in _freePages)
-            {
-                offset += StorageSliceSpaceUsage.SizeOf;
-                slicePage.SetEntry(offset, new StorageSpaceEntry(item));
-                index++;
             }
         }
     }

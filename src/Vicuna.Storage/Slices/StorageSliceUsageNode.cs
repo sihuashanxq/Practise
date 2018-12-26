@@ -81,7 +81,7 @@ namespace Vicuna.Storage
                 fixed (byte* buffer = _nodePage)
                 {
                     var pageHead = (PageHeader*)buffer;
-                    var entryPointer = (StorageSliceSpaceUsage*)buffer[Constants.PageHeaderSize];
+                    var entryPointer = (StorageSliceSpaceUsage*)&buffer[Constants.PageHeaderSize];
 
                     return new StorageSliceSpaceEntry()
                     {
@@ -100,7 +100,7 @@ namespace Vicuna.Storage
                 fixed (byte* buffer = _nodePage)
                 {
                     var pageHead = (PageHeader*)buffer;
-                    var entryPointer = (StorageSliceSpaceUsage*)buffer[Constants.PageHeaderSize];
+                    var entryPointer = (StorageSliceSpaceUsage*)&buffer[Constants.PageHeaderSize];
 
                     return new StorageSliceSpaceEntry()
                     {

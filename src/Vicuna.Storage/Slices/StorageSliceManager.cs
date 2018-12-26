@@ -19,13 +19,7 @@ namespace Vicuna.Storage
 
         public StorageSlice GetSlice(long pageOffset)
         {
-            var buffer = _tx.GetPageToModify(pageOffset);
-            if (buffer == null)
-            {
-                throw new NullReferenceException(nameof(buffer));
-            }
-
-            return new StorageSlice(_tx, new StorageSlicePage(buffer));
+            return new StorageSlice(_tx, pageOffset);
         }
 
         public StorageSlice Allocate()
@@ -36,20 +30,19 @@ namespace Vicuna.Storage
                 throw new NullReferenceException(nameof(slicePages));
             }
 
-            var sliceHeadPageOffset = slicePages[0];
-            var sliceHeadPage = _tx.GetPageToModify(sliceHeadPageOffset);
+            var pageOffset = slicePages[0];
+            var sliceHeadPage = _tx.GetPageToModify(pageOffset);
             if (sliceHeadPage == null)
             {
                 throw new NullReferenceException(nameof(sliceHeadPage));
             }
 
-            //初始化新分配的slice页
             fixed (byte* buffer = sliceHeadPage)
             {
                 var header = (PageHeader*)buffer;
                 var entry = (StorageSliceSpaceUsage*)&buffer[Constants.PageHeaderSize];
 
-                header->PageOffset = sliceHeadPageOffset;
+                header->PageOffset = pageOffset;
                 header->FreeSize = 0;
                 header->PrePageOffset = -1;
                 header->NextPageOffset = -1;
@@ -58,14 +51,12 @@ namespace Vicuna.Storage
                 header->LastUsedPos = Constants.PageSize - 1;
                 header->ModifiedCount += Constants.PageSize;
 
-                for (var i = 0; i < PageCount; i++)
-                {
-                    entry[i].PageOffset = sliceHeadPageOffset + i;
-                    entry[i].UsedLength = i == 0 ? Constants.PageSize : Constants.PageHeaderSize;
-                }
+                //head page
+                entry->PageOffset = pageOffset;
+                entry->UsedLength = (uint)Constants.PageHeaderSize;
             }
 
-            return new StorageSlice(_tx, new StorageSlicePage(sliceHeadPage));
+            return new StorageSlice(_tx, sliceHeadPage);
         }
     }
 }

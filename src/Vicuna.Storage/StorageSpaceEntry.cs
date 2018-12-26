@@ -24,15 +24,39 @@ namespace Vicuna.Storage
         }
     }
 
-    [StructLayout(LayoutKind.Explicit, Pack = 1, Size = 10)]
+    [StructLayout(LayoutKind.Explicit, Pack = 1, Size = 12)]
     public struct StorageSliceSpaceUsage
     {
-        public const int SizeOf = 10;
+        public const int SizeOf = 12;
+
+        public StorageSliceSpaceUsage(long pageOffset, uint usedLength)
+        {
+            PageOffset = pageOffset;
+            UsedLength = usedLength;
+        }
 
         [FieldOffset(0)]
         public long PageOffset;
 
         [FieldOffset(8)]
-        public short UsedLength;
+        public uint UsedLength;
+    }
+
+    public class SlicePageUsageEntry
+    {
+        public int Index { get; set; }
+
+        public StorageSliceSpaceUsage Usage { get; set; }
+
+        public SlicePageUsageEntry(int index, StorageSliceSpaceUsage usage)
+        {
+            Index = index;
+            Usage = usage;
+        }
+
+        public SlicePageUsageEntry()
+        {
+
+        }
     }
 }

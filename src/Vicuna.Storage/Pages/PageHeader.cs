@@ -9,33 +9,36 @@ namespace Vicuna.Storage.Pages
         public byte Flag;
 
         [FieldOffset(1)]
-        public long PageOffset;
-
-        [FieldOffset(9)]
         public int CheckSum;
 
-        [FieldOffset(13)]
+        [FieldOffset(5)]
         public short PageSize;
 
-        [FieldOffset(15)]
+        [FieldOffset(7)]
         public short FreeSize;
 
-        [FieldOffset(17)]
+        [FieldOffset(9)]
+        public int UsedLength;
+
+        [FieldOffset(13)]
         public short ItemCount;
 
-        [FieldOffset(19)]
+        [FieldOffset(15)]
+        public long PageOffset;
+
+        [FieldOffset(23)]
         public long PrePageOffset;
 
-        [FieldOffset(27)]
+        [FieldOffset(31)]
         public long NextPageOffset;
 
-        [FieldOffset(35)]
-        public short LastUsedPos;
+        [FieldOffset(39)]
+        public short LastUsedOffset;
 
-        [FieldOffset(37)]
+        [FieldOffset(41)]
         public long ModifiedCount;
 
-        [FieldOffset(45)]
-        public fixed byte Reserved[19];
+        [FieldOffset(49)]
+        public fixed byte Reserved[15];
     }
 }

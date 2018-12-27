@@ -48,12 +48,13 @@ namespace Vicuna.Storage
                 header->NextPageOffset = -1;
                 header->ItemCount = PageCount;
                 header->PageSize = Constants.PageSize;
-                header->LastUsedPos = Constants.PageSize - 1;
+                header->LastUsedOffset = Constants.PageSize - 1;
                 header->ModifiedCount += Constants.PageSize;
+                header->UsedLength = 1024 * 16 + 64 * 1023;
 
                 //head page
                 entry->PageOffset = pageOffset;
-                entry->UsedLength = (uint)Constants.PageHeaderSize;
+                entry->UsedLength = Constants.PageHeaderSize;
             }
 
             return new StorageSlice(_tx, sliceHeadPage);

@@ -38,7 +38,7 @@ namespace Vicuna.Storage.Pages.MMap
                 header->PageSize = Constants.PageSize;
                 header->ItemCount = 0;
                 header->Flag = (byte)PageHeaderFlag.None;
-                header->LastUsedPos = Constants.PageHeaderSize;
+                header->LastUsedOffset = Constants.PageHeaderSize;
 
                 _maxAllocatedPage++;
 
@@ -97,7 +97,7 @@ namespace Vicuna.Storage.Pages.MMap
                     header->PageSize = Constants.PageSize;
                     header->ItemCount = 0;
                     header->Flag = (byte)PageHeaderFlag.None;
-                    header->LastUsedPos = Constants.PageHeaderSize;
+                    header->LastUsedOffset = Constants.PageHeaderSize;
                 }
             }
 

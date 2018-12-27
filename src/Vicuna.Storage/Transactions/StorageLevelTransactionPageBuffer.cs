@@ -5,7 +5,7 @@ using Vicuna.Storage.Pages;
 
 namespace Vicuna.Storage.Transactions
 {
-    public class StorageLevelTransactionPageBuffer
+    public unsafe class StorageLevelTransactionPageBuffer
     {
         private HashSet<long> UnUnsedPages { get; }
 
@@ -33,12 +33,12 @@ namespace Vicuna.Storage.Transactions
             if (AllocatedPages.Contains(pageOffset))
             {
                 pageContent = new byte[Constants.PageSize];
-                InitializePageContent(pageOffset, pageContent);
+                InitializePageHeader(pageOffset, pageContent);
                 return true;
             }
 
             pageContent = PageManager.GetPageContent(pageOffset);
-            InitializePageContent(pageOffset, pageContent);
+            InitializePageHeader(pageOffset, pageContent);
             return pageContent != null;
         }
 
@@ -52,7 +52,7 @@ namespace Vicuna.Storage.Transactions
             if (AllocatedPages.Contains(pageOffset))
             {
                 pageContent = new byte[Constants.PageSize];
-                InitializePageContent(pageOffset, pageContent);
+                InitializePageHeader(pageOffset, pageContent);
                 ModifiedPages.TryAdd(pageOffset, pageContent);
                 return true;
             }
@@ -65,7 +65,7 @@ namespace Vicuna.Storage.Transactions
 
             pageContent = new byte[page.Length];
             Array.Copy(page, pageContent, page.Length);
-            InitializePageContent(pageOffset, pageContent);
+            InitializePageHeader(pageOffset, pageContent);
             ModifiedPages.TryAdd(pageOffset, pageContent);
             return true;
         }
@@ -83,21 +83,21 @@ namespace Vicuna.Storage.Transactions
 
         public long[] AllocatePage(int pageCount)
         {
-            var allocatedPages = PageManager.Allocate(pageCount);
-            if (allocatedPages == null)
+            var pageOffsets = PageManager.Allocate(pageCount);
+            if (pageOffsets == null)
             {
-                return allocatedPages;
+                return pageOffsets;
             }
 
-            foreach (var item in allocatedPages)
+            foreach (var item in pageOffsets)
             {
                 AllocatedPages.Add(item);
             }
 
-            return allocatedPages;
+            return pageOffsets;
         }
 
-        private unsafe void InitializePageContent(long pageOffset, byte[] pageContent)
+        private void InitializePageHeader(long pageOffset, byte[] pageContent)
         {
             fixed (byte* pointer = pageContent)
             {
@@ -111,7 +111,8 @@ namespace Vicuna.Storage.Transactions
                     header->PageSize = Constants.PageSize;
                     header->ItemCount = 0;
                     header->Flag = (byte)PageHeaderFlag.None;
-                    header->LastUsedPos = Constants.PageHeaderSize;
+                    header->LastUsedOffset = Constants.PageHeaderSize;
+                    header->UsedLength = Constants.PageHeaderSize;
                 }
             }
         }

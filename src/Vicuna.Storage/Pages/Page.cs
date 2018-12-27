@@ -2,112 +2,69 @@
 {
     /// <summary>
     /// </summary>
-    public unsafe class Page
+    public class Page
     {
         public Page(byte[] buffer)
         {
             Buffer = buffer;
-            Header = GetHeader(buffer);
         }
 
-        /// <summary>
-        /// 页内容
-        /// </summary>
-        internal byte[] Buffer;
+        public byte[] Buffer;
 
-        /// <summary>
-        /// 页头
-        /// </summary>
-        internal PageHeader Header;
-
-        /// <summary>
-        /// 页面Id
-        /// </summary>
-        public long PagePos
+        public long PageOffset
         {
-            get => Header.PageOffset;
-            set => Header.PageOffset = value;
+            get => this.GetPageOffset();
+            set => this.SetPageOffset(value);
         }
 
-        /// <summary>
-        /// 前一个页Id
-        /// </summary>
-        public long PrePagePos
+        public long PrePageOffset
         {
-            get => Header.PrePageOffset;
-            set => Header.PrePageOffset = value;
+            get => this.GetPrePageOffset();
+            set => this.SetPrePageOffset(value);
         }
 
-        /// <summary>
-        /// 后一个页Id
-        /// </summary>
-        public long NextPagePos
+        public long NextPageOffset
         {
-            get => Header.NextPageOffset;
-            set => Header.NextPageOffset = value;
+            get => this.GetNextPageOffset();
+            set => this.SetNextPageOffset(value);
         }
 
-        /// <summary>
-        /// 页大小
-        /// </summary>
-        public short PageSize => Header.PageSize;
+        public short PageSize => Constants.PageSize;
 
-        /// <summary>
-        /// 页空闲字节数
-        /// </summary>
         public short FreeSize
         {
-            get => Header.FreeSize;
-            set => Header.FreeSize = value;
+            get => this.GetFreeLength();
+            set => this.SetFreeLength(value);
         }
 
-        /// <summary>
-        /// </summary>
-        public short LastUsed
+        public short LastUsedOffset
         {
-            get => Header.LastUsedPos;
-            set => Header.LastUsedPos = value;
+            get => this.GetLastUsedOffset();
+            set => this.SetLastUsedOffset(value);
         }
 
-        /// <summary>
-        /// </summary>
         public short ItemCount
         {
-            get => Header.ItemCount;
-            set => Header.ItemCount = value;
+            get => this.GetItemCount();
+            set => this.SetItemCount(value);
         }
 
-        /// <summary>
-        /// </summary>
         public long ModifiedCount
         {
-            get => Header.ModifiedCount;
-            set => Header.ModifiedCount = value;
+            get => this.GetModifiedCount();
+            set => this.SetModifiedCount(value);
         }
 
-        /// <summary>
-        /// 页标志
-        /// </summary>
+        public int UsedLength
+        {
+            get => this.GetUsedLength();
+            set => this.SetUsedLength(value);
+        }
+
         public PageHeaderFlag Flag
         {
-            get => (PageHeaderFlag)Header.Flag;
-            set => Header.Flag = (byte)value;
-        }
-
-        public unsafe void FlushPageHeader()
-        {
-            fixed (byte* pointer = Buffer)
-            {
-                *(PageHeader*)pointer = Header;
-            }
-        }
-
-        private static unsafe PageHeader GetHeader(byte[] buffer)
-        {
-            fixed (byte* pointer = buffer)
-            {
-                return *(PageHeader*)pointer;
-            }
+            get => this.GetFlag();
+            set => this.SetFlag((byte)value);
         }
     }
 }

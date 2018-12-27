@@ -29,7 +29,7 @@ namespace Vicuna.Storage
     {
         public const int SizeOf = 12;
 
-        public StorageSliceSpaceUsage(long pageOffset, uint usedLength)
+        public StorageSliceSpaceUsage(long pageOffset, int usedLength)
         {
             PageOffset = pageOffset;
             UsedLength = usedLength;
@@ -39,7 +39,7 @@ namespace Vicuna.Storage
         public long PageOffset;
 
         [FieldOffset(8)]
-        public uint UsedLength;
+        public int UsedLength;
     }
 
     public class SlicePageUsageEntry

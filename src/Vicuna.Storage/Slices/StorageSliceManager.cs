@@ -24,25 +24,19 @@ namespace Vicuna.Storage
 
         public StorageSlice Allocate()
         {
-            var slicePages = _tx.AllocatePageFromBuffer(PageCount);
-            if (slicePages == null)
+            var headPageOffset = _tx.AllocateSlicePage();
+            var headPage = _tx.GetPageToModify(headPageOffset);
+            if (headPage == null)
             {
-                throw new NullReferenceException(nameof(slicePages));
+                throw new NullReferenceException(nameof(headPage));
             }
 
-            var pageOffset = slicePages[0];
-            var sliceHeadPage = _tx.GetPageToModify(pageOffset);
-            if (sliceHeadPage == null)
-            {
-                throw new NullReferenceException(nameof(sliceHeadPage));
-            }
-
-            fixed (byte* buffer = sliceHeadPage)
+            fixed (byte* buffer = headPage.Buffer)
             {
                 var header = (PageHeader*)buffer;
                 var entry = (StorageSliceSpaceUsage*)&buffer[Constants.PageHeaderSize];
 
-                header->PageOffset = pageOffset;
+                header->PageOffset = headPageOffset;
                 header->FreeSize = 0;
                 header->PrePageOffset = -1;
                 header->NextPageOffset = -1;
@@ -50,14 +44,14 @@ namespace Vicuna.Storage
                 header->PageSize = Constants.PageSize;
                 header->LastUsedOffset = Constants.PageSize - 1;
                 header->ModifiedCount += Constants.PageSize;
-                header->UsedLength = 1024 * 16 + 64 * 1023;
+                header->UsedLength = Constants.StorageSliceDefaultUsedLength;
 
                 //head page
-                entry->PageOffset = pageOffset;
-                entry->UsedLength = Constants.PageHeaderSize;
+                entry->PageOffset = headPageOffset;
+                entry->UsedLength = Constants.PageSize;
             }
 
-            return new StorageSlice(_tx, sliceHeadPage);
+            return new StorageSlice(_tx, headPage);
         }
     }
 }

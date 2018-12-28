@@ -1,4 +1,6 @@
-﻿namespace Vicuna.Storage.Transactions
+﻿using Vicuna.Storage.Pages;
+
+namespace Vicuna.Storage.Transactions
 {
     public class StorageLevelTransaction
     {
@@ -19,44 +21,43 @@
 
         internal StorageSliceManager SliceManager { get; }
 
-        internal StorageLevelTransactionPageBuffer Buffer { get; }
+        internal StorageLevelTransactionBufferManager Buffer { get; }
 
-        public StorageLevelTransaction(StorageLevelTransactionPageBuffer buffer)
+        public StorageLevelTransaction(StorageLevelTransactionBufferManager buffer)
         {
             Buffer = buffer;
         }
 
-        public bool AllocatePageFromSlice(out byte[] page)
+        public bool AllocatePage(out Page page)
         {
-            if (!_slice.AllocatePage(out var x))
+            if (!_slice.AllocatePage(out page))
             {
 
             }
 
-            page = null;
             return false;
         }
 
-        public long[] AllocatePageFromBuffer(int pageCount)
+        public long AllocateSlicePage()
         {
-            return Buffer.AllocatePage(pageCount);
+            return Buffer.AllocateSlicePage();
         }
 
-        public byte[] GetPage(long pageOffset)
+        public Page GetPage(long pageOffset)
         {
-            if (Buffer.TryGetPage(pageOffset, out var pageContent))
+            if (Buffer.TryGetPage(pageOffset, out var page))
             {
-                return pageContent;
+                return page;
             }
 
             return null;
         }
 
-        public byte[] GetPageToModify(long pageOffset)
+        public Page GetPageToModify(long pageOffset)
         {
-            if (Buffer.TryGetPageToModify(pageOffset, out var pageContent))
+            if (Buffer.TryGetPageToModify(pageOffset, out var modifedPage))
             {
-                return pageContent;
+                return modifedPage;
             }
 
             return null;

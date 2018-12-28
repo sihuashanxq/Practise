@@ -1,12 +1,38 @@
-﻿namespace Vicuna.Storage.Pages
+﻿using System;
+
+namespace Vicuna.Storage.Pages
 {
     /// <summary>
     /// </summary>
-    public class Page
+    public unsafe class Page
     {
+        public Memory<byte> Memory { get; }
+
         public Page(byte[] buffer)
         {
             Buffer = buffer;
+        }
+
+        public Page(long pageOffset)
+        {
+            Buffer = new byte[PageSize];
+
+            fixed (byte* buffer = Buffer)
+            {
+                var header = (PageHeader*)buffer;
+                if (header->ModifiedCount == 0)
+                {
+                    header->PageOffset = pageOffset;
+                    header->PrePageOffset = -1;
+                    header->NextPageOffset = -1;
+                    header->FreeSize = Constants.PageSize - Constants.PageHeaderSize;
+                    header->PageSize = Constants.PageSize;
+                    header->ItemCount = 0;
+                    header->Flag = (byte)PageHeaderFlag.None;
+                    header->UsedLength = Constants.PageHeaderSize;
+                    header->LastUsedOffset = Constants.PageHeaderSize;
+                }
+            }
         }
 
         public byte[] Buffer;
@@ -61,10 +87,27 @@
             set => this.SetUsedLength(value);
         }
 
+        public short FreeEntryHeadOffset
+        {
+            get; set;
+        }
+
+        public short FreeEntryTailOffset
+        {
+            get; set;
+        }
+
         public PageHeaderFlag Flag
         {
             get => this.GetFlag();
             set => this.SetFlag((byte)value);
+        }
+
+        public Page Clone()
+        {
+            var newBuffer = new byte[PageSize];
+            Array.Copy(Buffer, newBuffer, PageSize);
+            return new Page(newBuffer);
         }
     }
 }

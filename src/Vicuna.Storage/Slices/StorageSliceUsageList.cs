@@ -18,7 +18,7 @@ namespace Vicuna.Storage
         {
             if (_head.IsFull)
             {
-                if (!_tx.AllocatePageFromSlice(out var newNodePage))
+                if (!_tx.AllocatePage(out var newNodePage))
                 {
                     throw new InvalidOperationException("alloc new page failed!");
                 }

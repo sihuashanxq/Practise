@@ -4,7 +4,7 @@ using System.IO;
 
 namespace Vicuna.Storage.Pages.MMap
 {
-    public class StorageFilePager : StoragePageManager
+    public class StorageFilePager : StoragePaginationManager
     {
         private long _maxAllocatedPage;
 
@@ -119,29 +119,17 @@ namespace Vicuna.Storage.Pages.MMap
 
         public override long Allocate()
         {
-            return Allocate(1)[0];
+            return Allocate(1);
         }
 
-        public override long[] Allocate(int pageCount)
+        public override long Allocate(int pageCount)
         {
-            var start = Create(pageCount);
-            var rets = new long[pageCount];
-            for (var i = 0; i < pageCount; i++)
-            {
-                rets[i] = start + i;
-            }
-
-            return rets;
+            return  Create(pageCount);
         }
 
         public override byte[] GetPageContent(long pageOffset)
         {
             return GetPage(pageOffset).Buffer;
-        }
-
-        public override void FreePage(Page page)
-        {
-            throw new NotImplementedException();
         }
 
         public override void FreePage(byte[] pageContent)

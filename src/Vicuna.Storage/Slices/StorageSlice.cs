@@ -1,69 +1,66 @@
 ﻿using System;
-using System.Collections.Concurrent;
-using System.Collections.Generic;
 using System.Linq;
 using Vicuna.Storage.Pages;
+using Vicuna.Storage.Slices;
 using Vicuna.Storage.Transactions;
 
 namespace Vicuna.Storage
 {
     public unsafe class StorageSlice
     {
-        private StorageSliceActivePageEntry _lastUsedPageEntry;
-
-        private StorageSpaceEntry _usage;
+        private StorageLevelTransaction _tx;
 
         private StorageSiceHeadPage _sliceHeadPage;
 
-        private readonly StorageLevelTransaction _tx;
-
-        internal StorageSliceActivePageEntry LastUsedPageEntry => _lastUsedPageEntry ?? (_lastUsedPageEntry = GetSliceUnUsedPage());
+        private StorageSliceActivePageEntry _lastUsedPageEntry;
 
         internal StorageSiceHeadPage SliceHeadPage => _sliceHeadPage;
 
+        internal StorageSliceActivePageEntry LastUsedPageEntry => _lastUsedPageEntry ?? (_lastUsedPageEntry = GetSliceUnUsedPage());
+
         public StorageSlice(StorageLevelTransaction tx, long sliceHeadPageOffset)
-            : this(tx, tx.GetPageToModify(sliceHeadPageOffset))
-        {
-
-        }
-
-        public StorageSlice(StorageLevelTransaction tx, byte[] headPageContent)
         {
             _tx = tx;
-            _sliceHeadPage = new StorageSiceHeadPage(headPageContent);
+            _sliceHeadPage = new StorageSiceHeadPage(_tx.GetPageToModify(sliceHeadPageOffset).Buffer);
         }
 
-        public bool AllocatePage(out byte[] pageContent)
+        public StorageSlice(StorageLevelTransaction tx, Page headPage)
+        {
+            _tx = tx;
+            _sliceHeadPage = new StorageSiceHeadPage(headPage.Buffer);
+        }
+
+        public bool AllocatePage(out Page page)
         {
             if (SliceHeadPage.FreePageIndexs.Count == 0)
             {
-                pageContent = null;
+                page = null;
                 return false;
             }
 
-            var firstFreePageIndex = SliceHeadPage.FreePageIndexs.First();
-            if (firstFreePageIndex <= 0)
+            var freePageIndex = SliceHeadPage.FreePageIndexs.First();
+            if (freePageIndex <= 0)
             {
-                throw new IndexOutOfRangeException(nameof(firstFreePageIndex));
+                throw new IndexOutOfRangeException(nameof(freePageIndex));
             }
 
-            if ((pageContent = _tx.GetPageToModify(firstFreePageIndex + SliceHeadPage.PageOffset)) == null)
+            if ((page = _tx.GetPageToModify(freePageIndex + SliceHeadPage.PageOffset)) == null)
             {
                 return false;
             }
 
-            SliceHeadPage.SetPageEntry(firstFreePageIndex, Constants.PageHeaderSize, Constants.PageSize);
+            SliceHeadPage.SetPageEntry(freePageIndex, Constants.PageHeaderSize, Constants.PageSize);
             return true;
         }
 
-        public bool Allocate(int size, out AllocationBuffer buffer)
+        public bool Allocate(int size, out PageSlice pageSlice)
         {
             if (size > Constants.PageSize - Constants.PageHeaderSize)
             {
                 throw new ArgumentOutOfRangeException(nameof(size));
             }
 
-            if (Allocate(LastUsedPageEntry, (short)size, out buffer))
+            if (Allocate(LastUsedPageEntry, (short)size, out pageSlice))
             {
                 return true;
             }
@@ -76,7 +73,7 @@ namespace Vicuna.Storage
                     continue;
                 }
 
-                if (Allocate(new StorageSliceActivePageEntry(item.Key, pageContent), (short)size, out buffer))
+                if (Allocate(new StorageSliceActivePageEntry(item.Key, pageContent), (short)size, out pageSlice))
                 {
                     return true;
                 }
@@ -88,7 +85,7 @@ namespace Vicuna.Storage
                 return false;
             }
 
-            if (Allocate(unUsedPage, (short)size, out buffer))
+            if (Allocate(unUsedPage, (short)size, out pageSlice))
             {
                 return true;
             }
@@ -96,12 +93,12 @@ namespace Vicuna.Storage
             return false;
         }
 
-        public bool Allocate(StorageSliceActivePageEntry pageEntry, short size, out AllocationBuffer buffer)
+        private bool Allocate(StorageSliceActivePageEntry pageEntry, short size, out PageSlice pageSlice)
         {
             var pageHeader = pageEntry.GetPageHeader();
-            if (pageHeader.LastUsedOffset + size > Constants.PageSize)
+            if (pageHeader.UsedLength + size > Constants.PageSize)
             {
-                buffer = null;
+                pageSlice = null;
                 return false;
             }
 
@@ -111,13 +108,13 @@ namespace Vicuna.Storage
                 throw new NullReferenceException(nameof(modifiedPage));
             }
 
-            fixed (byte* pagePointer = modifiedPage)
+            fixed (byte* pagePointer = modifiedPage.Buffer)
             {
                 var modifiedPageHead = (PageHeader*)pagePointer;
                 var spaceEntry = new StorageSliceSpaceUsage()
                 {
                     PageOffset = pageHeader.PageOffset,
-                    UsedLength = Constants.PageSize - modifiedPageHead->FreeSize
+                    UsedLength = modifiedPageHead->UsedLength
                 };
 
                 if (modifiedPageHead->FreeSize - size <= 128)
@@ -139,56 +136,35 @@ namespace Vicuna.Storage
                     modifiedPageHead->ModifiedCount += size;
                     modifiedPageHead->UsedLength += size;
 
-                    _lastUsedPageEntry = pageEntry;
+                    _lastUsedPageEntry = new StorageSliceActivePageEntry(pageEntry.Index, modifiedPage);
                     SliceHeadPage.SetPageEntry(pageEntry.Index, pageHeader.UsedLength, modifiedPageHead->UsedLength);
                 }
 
-                buffer = new AllocationBuffer(modifiedPage, pageHeader.LastUsedOffset, size);
+                pageSlice = new PageSlice(modifiedPage, pageHeader.LastUsedOffset, size);
                 return true;
             }
         }
 
-        protected StorageSliceActivePageEntry GetSliceUnUsedPage()
+        private StorageSliceActivePageEntry GetSliceUnUsedPage()
         {
             if (SliceHeadPage.FreePageCount == 0)
             {
                 return null;
             }
 
-            var firstFreePageIndex = SliceHeadPage.FreePageIndexs.First();
-            if (firstFreePageIndex < 0)
+            var freePageIndex = SliceHeadPage.FreePageIndexs.First();
+            if (freePageIndex < 0)
             {
-                throw new IndexOutOfRangeException(nameof(firstFreePageIndex));
+                throw new IndexOutOfRangeException(nameof(freePageIndex));
             }
 
-            var pageContent = _tx.GetPageToModify(firstFreePageIndex + _sliceHeadPage.PageOffset);
-            if (pageContent == null)
+            var page = _tx.GetPage(freePageIndex + _sliceHeadPage.PageOffset);
+            if (page == null)
             {
                 return null;
             }
 
-            return new StorageSliceActivePageEntry(firstFreePageIndex, pageContent);
-        }
-    }
-
-    public unsafe class StorageSliceActivePageEntry
-    {
-        public int Index { get; set; }
-
-        public byte[] PageContent { get; set; }
-
-        public StorageSliceActivePageEntry(int index, byte[] pageContent)
-        {
-            Index = index;
-            PageContent = pageContent;
-        }
-
-        public PageHeader GetPageHeader()
-        {
-            fixed (byte* pagePointer = PageContent)
-            {
-                return *(PageHeader*)pagePointer;
-            }
+            return new StorageSliceActivePageEntry(freePageIndex, page);
         }
     }
 }

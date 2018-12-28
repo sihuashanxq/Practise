@@ -16,4 +16,8 @@
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
+  <ItemGroup>
+    <Folder Include="Data\Impl\" />
+  </ItemGroup>
+
 </Project>

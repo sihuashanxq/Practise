@@ -5,47 +5,45 @@ using Vicuna.Storage.Slices;
 
 namespace Vicuna.Storage
 {
-    public unsafe class StorageSliceUsageNode
+    public unsafe class StorageSliceActivingNode
     {
-        private readonly Page _nodePage;
+        internal Page NodePage { get; }
 
-        public StorageSliceUsageNode(Page nodePage)
+        public StorageSliceActivingNode(Page nodePage)
         {
-            _nodePage = nodePage;
+            NodePage = nodePage;
         }
 
-        public short Count => _nodePage.GetItemCount();
+        public bool IsFull => NodePage.ItemCount == 1024;
 
-        public bool IsFull => Count == 1024;
-
-        public bool IsEmpty => Count == 0;
+        public bool IsEmpty => NodePage.ItemCount == 0;
 
         public long PageOffset
         {
-            get => _nodePage.PageOffset;
-            set => _nodePage.PageOffset = value;
+            get => NodePage.PageOffset;
+            set => NodePage.PageOffset = value;
         }
 
         public long PrePageOffset
         {
-            get => _nodePage.PrePageOffset;
-            set => _nodePage.PrePageOffset = value;
+            get => NodePage.PrePageOffset;
+            set => NodePage.PrePageOffset = value;
         }
 
         public long NextPageOffset
         {
-            get => _nodePage.NextPageOffset;
-            set => _nodePage.NextPageOffset = value;
+            get => NodePage.NextPageOffset;
+            set => NodePage.NextPageOffset = value;
         }
 
         public StorageSliceSpaceEntry FirstEntry
         {
             get
             {
-                fixed (byte* buffer = _nodePage.Buffer)
+                fixed (byte* buffer = NodePage.Buffer)
                 {
                     var pageHead = (PageHeader*)buffer;
-                    var entryPointer = (StorageSliceSpaceUsage*)&buffer[Constants.PageHeaderSize];
+                    var entryPointer = (SpaceUsage*)&buffer[Constants.PageHeaderSize];
 
                     return new StorageSliceSpaceEntry()
                     {
@@ -61,10 +59,10 @@ namespace Vicuna.Storage
         {
             get
             {
-                fixed (byte* buffer = _nodePage.Buffer)
+                fixed (byte* buffer = NodePage.Buffer)
                 {
                     var pageHead = (PageHeader*)buffer;
-                    var entryPointer = (StorageSliceSpaceUsage*)&buffer[Constants.PageHeaderSize];
+                    var entryPointer = (SpaceUsage*)&buffer[Constants.PageHeaderSize];
 
                     return new StorageSliceSpaceEntry()
                     {
@@ -78,35 +76,35 @@ namespace Vicuna.Storage
 
         public void Delete(int index)
         {
-            if (index < 0 || index >= Count)
+            if (index < 0 || index >= NodePage.ItemCount)
             {
                 throw new IndexOutOfRangeException(nameof(index));
             }
 
-            fixed (byte* buffer = _nodePage.Buffer)
+            fixed (byte* buffer = NodePage.Buffer)
             {
-                var count = Count;
+                var count = NodePage.ItemCount;
                 var pageHead = (PageHeader*)buffer;
-                var entryPointer = (StorageSliceSpaceUsage*)&buffer[Constants.PageHeaderSize];
+                var entryPointer = (SpaceUsage*)&buffer[Constants.PageHeaderSize];
 
                 for (var i = index; i < count - 1; i++)
                 {
                     entryPointer[i] = entryPointer[i + 1];
                 }
 
-                entryPointer[Count - 1].PageOffset = -1;
-                entryPointer[Count - 1].UsedLength = 0;
+                entryPointer[count - 1].PageOffset = -1;
+                entryPointer[count - 1].UsedLength = 0;
                 pageHead->ItemCount--;
             }
         }
 
-        public void Insert(StorageSliceSpaceUsage usage)
+        public int Insert(SpaceUsage usage)
         {
-            fixed (byte* buffer = _nodePage.Buffer)
+            fixed (byte* buffer = NodePage.Buffer)
             {
                 var index = 0;
                 var pageHead = (PageHeader*)buffer;
-                var entryPointer = (StorageSliceSpaceUsage*)&buffer[Constants.PageHeaderSize];
+                var entryPointer = (SpaceUsage*)&buffer[Constants.PageHeaderSize];
 
                 for (; index < pageHead->ItemCount; index++)
                 {
@@ -123,15 +121,17 @@ namespace Vicuna.Storage
 
                 entryPointer[index] = usage;
                 pageHead->ItemCount++;
+
+                return index;
             }
         }
 
         public void Update(StorageSliceSpaceEntry entry)
         {
-            fixed (byte* buffer = _nodePage.Buffer)
+            fixed (byte* buffer = NodePage.Buffer)
             {
                 var pageHead = (PageHeader*)buffer;
-                var entryPointer = (StorageSliceSpaceUsage*)&buffer[Constants.PageHeaderSize];
+                var entryPointer = (SpaceUsage*)&buffer[Constants.PageHeaderSize];
                 if (entryPointer[entry.Index].UsedLength > entry.Usage.UsedLength)
                 {
                     entryPointer[entry.Index] = entry.Usage;
@@ -145,7 +145,7 @@ namespace Vicuna.Storage
             }
         }
 
-        public void MoveUpdateEntryIncrement(StorageSliceSpaceUsage* entryPointer, int changedLeft, int changedRight)
+        public void MoveUpdateEntryIncrement(SpaceUsage* entryPointer, int changedLeft, int changedRight)
         {
             for (var i = changedRight; i >= changedLeft + 1; i--)
             {
@@ -160,7 +160,7 @@ namespace Vicuna.Storage
             }
         }
 
-        public void MoveUpdateEntryDecrement(StorageSliceSpaceUsage* entryPointer, int changedLeft, int changedRight)
+        public void MoveUpdateEntryDecrement(SpaceUsage* entryPointer, int changedLeft, int changedRight)
         {
             for (var i = changedLeft; i < changedRight - 1; i++)
             {
@@ -175,26 +175,14 @@ namespace Vicuna.Storage
             }
         }
 
-        public void InitializeNodePage()
+        public List<SpaceUsage> GetEntries()
         {
-            fixed (byte* buffer = _nodePage.Buffer)
+            var entries = new List<SpaceUsage>();
+
+            fixed (byte* buffer = NodePage.Buffer)
             {
                 var pageHead = (PageHeader*)buffer;
-
-                pageHead->ItemCount = 0;
-                pageHead->ModifiedCount = 0;
-                pageHead->FreeSize = 0;
-            }
-        }
-
-        public List<StorageSliceSpaceUsage> GetEntries()
-        {
-            var entries = new List<StorageSliceSpaceUsage>();
-
-            fixed (byte* buffer = _nodePage.Buffer)
-            {
-                var pageHead = (PageHeader*)buffer;
-                var entryPointer = (StorageSliceSpaceUsage*)&buffer[Constants.PageHeaderSize];
+                var entryPointer = (SpaceUsage*)&buffer[Constants.PageHeaderSize];
                 for (var i = 0; i < pageHead->ItemCount; i++)
                 {
                     entries.Add(entryPointer[i]);

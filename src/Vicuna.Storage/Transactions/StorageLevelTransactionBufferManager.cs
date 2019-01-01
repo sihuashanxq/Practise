@@ -33,6 +33,7 @@ namespace Vicuna.Storage.Transactions
             if (AllocatedPages.Contains(pageOffset))
             {
                 page = new Page(pageOffset);
+                ModifiedPages.TryAdd(pageOffset, page);
                 return true;
             }
 

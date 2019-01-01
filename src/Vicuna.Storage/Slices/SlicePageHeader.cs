@@ -1,12 +1,11 @@
 ﻿using System.Runtime.InteropServices;
+using Vicuna.Storage.Pages;
 
-namespace Vicuna.Storage.Pages
+namespace Vicuna.Storage.Slices
 {
     [StructLayout(LayoutKind.Explicit, Pack = 1, Size = 96)]
-    public unsafe struct PageHeader
+    public unsafe struct SlicePageHeader
     {
-        public static PageHeader Default = new PageHeader() { PageOffset = -1 };
-
         [FieldOffset(0)]
         public PageHeaderFlag Flag;
 
@@ -41,12 +40,12 @@ namespace Vicuna.Storage.Pages
         public long ModifiedCount;
 
         [FieldOffset(49)]
-        public short FreeEntryOffset;
-
-        [FieldOffset(51)]
-        public short FreeEntryLength;
+        public int ActivedNodeIndex;
 
         [FieldOffset(53)]
-        public fixed byte Reserved[41];
+        public long ActivedNodeOffset;
+
+        [FieldOffset(61)]
+        public fixed byte Reserved[33];
     }
 }

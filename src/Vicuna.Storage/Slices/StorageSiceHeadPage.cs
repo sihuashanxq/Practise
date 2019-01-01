@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Collections.Concurrent;
 using Vicuna.Storage.Pages;
+using Vicuna.Storage.Slices;
 
 namespace Vicuna.Storage
 {
@@ -13,23 +14,35 @@ namespace Vicuna.Storage
 
         public int FullPageCount => FullPageIndexs.Count;
 
+        public int ActivedNodeIndex
+        {
+            get => this.GetAcitvedNodeIndex();
+            set => this.SetActivedNodeIndex(value);
+        }
+
+        public long ActivedNodeOffset
+        {
+            get => this.GetAcitvedNodeOffset();
+            set => this.SetActivedNodeOffset(value);
+        }
+
         public HashSet<int> FreePageIndexs { get; }
 
         public HashSet<int> FullPageIndexs { get; }
 
-        public ConcurrentDictionary<int, StorageSliceSpaceUsage> ActivedPageMapping { get; }
+        public ConcurrentDictionary<int, SpaceUsage> ActivedPageMapping { get; }
 
         public StorageSiceHeadPage(byte[] buffer) : base(buffer)
         {
             FreePageIndexs = new HashSet<int>();
             FullPageIndexs = new HashSet<int>();
-            ActivedPageMapping = new ConcurrentDictionary<int, StorageSliceSpaceUsage>();
+            ActivedPageMapping = new ConcurrentDictionary<int, SpaceUsage>();
             BuildPageEntries();
         }
 
         public void SetPageEntry(int index, int oldUsedLength, int newUsedLength)
         {
-            SetPageEntry(index, oldUsedLength, new StorageSliceSpaceUsage(PageOffset + index, newUsedLength));
+            SetPageEntry(index, oldUsedLength, new SpaceUsage(PageOffset + index, newUsedLength));
         }
 
         public void SetPageEntry(int oldUsedLength, SlicePageUsageEntry pageEntry)
@@ -37,7 +50,7 @@ namespace Vicuna.Storage
             SetPageEntry(pageEntry.Index, oldUsedLength, pageEntry.Usage);
         }
 
-        public void SetPageEntry(int index, int oldUsedLength, StorageSliceSpaceUsage usage)
+        public void SetPageEntry(int index, int oldUsedLength, SpaceUsage usage)
         {
             if (usage.UsedLength >= Constants.PageSize - 128)
             {
@@ -57,7 +70,7 @@ namespace Vicuna.Storage
             fixed (byte* buffer = Buffer)
             {
                 var pageHeader = (PageHeader*)buffer;
-                var pagePointer = (StorageSliceSpaceUsage*)&buffer[Constants.PageHeaderSize];
+                var pagePointer = (SpaceUsage*)&buffer[Constants.PageHeaderSize];
 
                 pagePointer[index] = usage;
                 pageHeader->ModifiedCount++;
@@ -74,7 +87,7 @@ namespace Vicuna.Storage
 
             fixed (byte* buffer = Buffer)
             {
-                return GetPageEntry((StorageSliceSpaceUsage*)&buffer[Constants.PageHeaderSize], index);
+                return GetPageEntry((SpaceUsage*)&buffer[Constants.PageHeaderSize], index);
             }
         }
 
@@ -84,7 +97,7 @@ namespace Vicuna.Storage
 
             fixed (byte* buffer = Buffer)
             {
-                var pointer = (StorageSliceSpaceUsage*)&buffer[Constants.PageHeaderSize];
+                var pointer = (SpaceUsage*)&buffer[Constants.PageHeaderSize];
 
                 for (var index = 0; index < SlicePageCount; index++)
                 {
@@ -95,7 +108,7 @@ namespace Vicuna.Storage
             return pageUsagEntries;
         }
 
-        private SlicePageUsageEntry GetPageEntry(StorageSliceSpaceUsage* pointer, int index)
+        private SlicePageUsageEntry GetPageEntry(SpaceUsage* pointer, int index)
         {
             if (index < 0 || index > SlicePageCount)
             {
@@ -148,7 +161,7 @@ namespace Vicuna.Storage
             }
         }
 
-        private void SetPageEntryIsActived(int index, int oldUsedLength, StorageSliceSpaceUsage usage)
+        private void SetPageEntryIsActived(int index, int oldUsedLength, SpaceUsage usage)
         {
             if (oldUsedLength >= Constants.PageSize - 128)
             {
@@ -168,7 +181,7 @@ namespace Vicuna.Storage
         {
             fixed (byte* buffer = Buffer)
             {
-                var pageEntryPointer = (StorageSliceSpaceUsage*)&buffer[Constants.PageHeaderSize];
+                var pageEntryPointer = (SpaceUsage*)&buffer[Constants.PageHeaderSize];
 
                 for (var index = 0; index < SlicePageCount; index++)
                 {

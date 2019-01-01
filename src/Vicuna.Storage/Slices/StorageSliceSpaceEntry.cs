@@ -6,6 +6,6 @@
 
         public long OwnerOffset;
 
-        public StorageSliceSpaceUsage Usage;
+        public SpaceUsage Usage;
     }
 }

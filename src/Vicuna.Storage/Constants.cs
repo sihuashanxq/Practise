@@ -22,7 +22,7 @@
 
         public const int Kb = 1024;
 
-        public const int PageHeaderSize = 64;
+        public const int PageHeaderSize = 96;
 
         public const int PageSize = Kb * 16;
 
@@ -30,10 +30,10 @@
 
         public const int SlicePageCount = Kb;
 
-        public const int StorageSliceSize =  unchecked(SlicePageCount * PageSize * Kb);
+        public const int StorageSliceSize = unchecked(SlicePageCount * PageSize * Kb);
 
-        public const int StorageSliceDefaultUsedLength=PageSize+PageHeaderSize*(SlicePageCount-1);
+        public const int StorageSliceDefaultUsedLength = PageSize + PageHeaderSize * (SlicePageCount - 1);
 
-        public const int StorageSliceDefaultFreeLength =StorageSliceSize-StorageSliceDefaultUsedLength;
+        public const int StorageSliceDefaultFreeLength = StorageSliceSize - StorageSliceDefaultUsedLength;
     }
 }

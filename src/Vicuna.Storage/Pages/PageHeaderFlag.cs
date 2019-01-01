@@ -6,14 +6,12 @@
 
         Data = 1,
 
-        Overflow = 2,
+        Tree = 2,
 
-        Tree = 4,
+        Overflow = 4,
 
-        SpacePage = 8,
+        SliceHead = 8,
 
-        SlicePage = 16,
-
-        SegmentPage = 32
+        SliceSpaceNode = 16
     }
 }

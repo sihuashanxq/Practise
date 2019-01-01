@@ -6,35 +6,28 @@ namespace Vicuna.Storage.Transactions
     {
         private StorageSlice _slice;
 
-        internal StorageSlice Slice
-        {
-            get
-            {
-                if (_slice == null)
-                {
-                    _slice = SliceManager.Allocate();
-                }
-
-                return _slice;
-            }
-        }
+        internal StorageSlice Slice => _slice ?? (_slice = SliceManager.Allocate());
 
         internal StorageSliceManager SliceManager { get; }
+
+        internal StorageSliceActivingList ActivedSlices { get; }
 
         internal StorageLevelTransactionBufferManager Buffer { get; }
 
         public StorageLevelTransaction(StorageLevelTransactionBufferManager buffer)
         {
             Buffer = buffer;
+            ActivedSlices = new StorageSliceActivingList(this);
         }
 
         public bool AllocatePage(out Page page)
         {
             if (!_slice.AllocatePage(out page))
             {
-
+                return false;
             }
 
+            page = null;
             return false;
         }
 

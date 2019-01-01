@@ -1,6 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
+﻿using Vicuna.Storage.Slices;
 
 namespace Vicuna.Storage.Pages
 {
@@ -88,12 +86,64 @@ namespace Vicuna.Storage.Pages
 
         public static PageHeaderFlag GetFlag(this Page @this)
         {
-            fixed (byte* buffer = @this.Buffer) return (PageHeaderFlag)((PageHeader*)buffer)->Flag;
+            fixed (byte* buffer = @this.Buffer) return ((PageHeader*)buffer)->Flag;
         }
 
-        public static void SetFlag(this Page @this, byte value)
+        public static void SetFlag(this Page @this, PageHeaderFlag value)
         {
             fixed (byte* buffer = @this.Buffer) ((PageHeader*)buffer)->Flag = value;
+        }
+
+        public static short GetFreeEntryOffset(this Page @this)
+        {
+            fixed (byte* buffer = @this.Buffer) return ((PageHeader*)buffer)->FreeEntryOffset;
+        }
+
+        public static void SetFreeEntryOffset(this Page @this, short value)
+        {
+            fixed (byte* buffer = @this.Buffer) ((PageHeader*)buffer)->FreeEntryOffset = value;
+        }
+
+        public static short GetFreeEntryLength(this Page @this)
+        {
+            fixed (byte* buffer = @this.Buffer) return ((PageHeader*)buffer)->FreeEntryLength;
+        }
+
+        public static void SetFreeEntryLength(this Page @this, short value)
+        {
+            fixed (byte* buffer = @this.Buffer) ((PageHeader*)buffer)->FreeEntryLength = value;
+        }
+
+        public static int GetAcitvedNodeIndex(this Page @this)
+        {
+            fixed (byte* buffer = @this.Buffer)
+            {
+                return ((SlicePageHeader*)buffer)->ActivedNodeIndex;
+            }
+        }
+
+        public static long GetAcitvedNodeOffset(this Page @this)
+        {
+            fixed (byte* buffer = @this.Buffer)
+            {
+                return ((SlicePageHeader*)buffer)->ActivedNodeOffset;
+            }
+        }
+
+        public static void SetActivedNodeIndex(this Page @this, int vaue)
+        {
+            fixed (byte* buffer = @this.Buffer)
+            {
+                ((SlicePageHeader*)buffer)->ActivedNodeIndex = vaue;
+            }
+        }
+
+        public static void SetActivedNodeOffset(this Page @this, long value)
+        {
+            fixed (byte* buffer = @this.Buffer)
+            {
+                ((SlicePageHeader*)buffer)->ActivedNodeOffset = value;
+            }
         }
     }
 }

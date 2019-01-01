@@ -1,4 +1,5 @@
 ﻿using System;
+using Vicuna.Storage.Data;
 
 namespace Vicuna.Storage.Pages
 {
@@ -6,7 +7,7 @@ namespace Vicuna.Storage.Pages
     /// </summary>
     public unsafe class Page
     {
-        public Memory<byte> Memory { get; }
+        public byte[] Buffer;
 
         public Page(byte[] buffer)
         {
@@ -25,17 +26,15 @@ namespace Vicuna.Storage.Pages
                     header->PageOffset = pageOffset;
                     header->PrePageOffset = -1;
                     header->NextPageOffset = -1;
+                    header->ItemCount = 0;
                     header->FreeSize = Constants.PageSize - Constants.PageHeaderSize;
                     header->PageSize = Constants.PageSize;
-                    header->ItemCount = 0;
-                    header->Flag = (byte)PageHeaderFlag.None;
+                    header->Flag = PageHeaderFlag.None;
                     header->UsedLength = Constants.PageHeaderSize;
                     header->LastUsedOffset = Constants.PageHeaderSize;
                 }
             }
         }
-
-        public byte[] Buffer;
 
         public long PageOffset
         {
@@ -87,20 +86,22 @@ namespace Vicuna.Storage.Pages
             set => this.SetUsedLength(value);
         }
 
-        public short FreeEntryHeadOffset
+        public short FreeEntryOffset
         {
-            get; set;
+            get => this.GetFreeEntryOffset();
+            set => this.SetFreeEntryOffset(value);
         }
 
-        public short FreeEntryTailOffset
+        public short FreeEntryLength
         {
-            get; set;
+            get => this.GetFreeEntryOffset();
+            set => this.SetFreeEntryOffset(value);
         }
 
         public PageHeaderFlag Flag
         {
             get => this.GetFlag();
-            set => this.SetFlag((byte)value);
+            set => this.SetFlag(value);
         }
 
         public Page Clone()
@@ -108,6 +109,22 @@ namespace Vicuna.Storage.Pages
             var newBuffer = new byte[PageSize];
             Array.Copy(Buffer, newBuffer, PageSize);
             return new Page(newBuffer);
+        }
+
+        public PageHeader GetPageHeader()
+        {
+            fixed (byte* buffer = Buffer)
+            {
+                return *(PageHeader*)buffer;
+            }
+        }
+
+        public FreeDataRecordEntry GetFreeDataRecordEntry(int offset)
+        {
+            fixed (byte* buffer = Buffer)
+            {
+                return *(FreeDataRecordEntry*)&buffer[offset];
+            }
         }
     }
 }

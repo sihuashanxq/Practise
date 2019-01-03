@@ -66,12 +66,13 @@ namespace Vicuna.Storage.Transactions
             return true;
         }
 
-        public long AllocateSlicePage()
+        public bool TryAllocateSlicePage(out long pageOffset)
         {
             var sliceHeadPageOffset = PaginationManager.Allocate(Constants.SlicePageCount);
             if (sliceHeadPageOffset < 0)
             {
-                throw new IndexOutOfRangeException(nameof(sliceHeadPageOffset));
+                pageOffset = -1;
+                return false;
             }
 
             for (var i = 0; i < Constants.SlicePageCount; i++)
@@ -79,7 +80,8 @@ namespace Vicuna.Storage.Transactions
                 AllocatedPages.Add(sliceHeadPageOffset + i);
             }
 
-            return sliceHeadPageOffset;
+            pageOffset = sliceHeadPageOffset;
+            return true;
         }
     }
 }

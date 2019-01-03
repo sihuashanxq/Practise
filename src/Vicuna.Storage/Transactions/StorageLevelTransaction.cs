@@ -33,27 +33,17 @@ namespace Vicuna.Storage.Transactions
 
         public long AllocateSlicePage()
         {
-            return Buffer.AllocateSlicePage();
+            return Buffer.TryAllocateSlicePage(out var pageOffset) ? pageOffset : -1;
         }
 
-        public Page GetPage(long pageOffset)
+        public Page GetPage(long pageNumber)
         {
-            if (Buffer.TryGetPage(pageOffset, out var page))
-            {
-                return page;
-            }
-
-            return null;
+            return Buffer.TryGetPage(pageNumber, out var page) ? page : null;
         }
 
-        public Page GetPageToModify(long pageOffset)
+        public Page GetPageToModify(long pageNumber)
         {
-            if (Buffer.TryGetPageToModify(pageOffset, out var modifedPage))
-            {
-                return modifedPage;
-            }
-
-            return null;
+            return Buffer.TryGetPageToModify(pageNumber, out var page) ? page : null;
         }
     }
 }

@@ -8,6 +8,8 @@ namespace Vicuna.Storage
     {
         private readonly StorageLevelTransaction _tx;
 
+        internal StorageSliceActivingList ActivedSlices => _tx.ActivedSlices;
+
         public StorageSliceManager(StorageLevelTransaction tx)
         {
             _tx = tx;
@@ -20,21 +22,28 @@ namespace Vicuna.Storage
 
         public StorageSlice Allocate()
         {
-            var headPageOffset = _tx.AllocateSlicePage();
-            var headPage = _tx.GetPageToModify(headPageOffset);
-            if (headPage == null)
+            var pageNumber = _tx.AllocateSlicePage();
+            var sliceHeadPage = _tx.GetPageToModify(pageNumber);
+            if (sliceHeadPage == null)
             {
-                throw new NullReferenceException(nameof(headPage));
+                throw new NullReferenceException(nameof(sliceHeadPage));
             }
 
-            fixed (byte* buffer = headPage.Buffer)
+            fixed (byte* buffer = sliceHeadPage.Buffer)
             {
                 var header = (SlicePageHeader*)buffer;
-                var usage = (SpaceUsage*)&buffer[Constants.PageHeaderSize];
-                var spaceEntry = _tx.ActivedSlices.Insert(headPageOffset, Constants.StorageSliceDefaultUsedLength);
+                var dataPointer = (SpaceUsage*)&buffer[Constants.PageHeaderSize];
+                var activingSliceSpaceEntry = new StorageSliceSpaceEntry()
+                {
+                    Usage = new SpaceUsage(pageNumber, Constants.StorageSliceDefaultUsedLength),
+                    Index = -1,
+                    OwnerOffset = -1
+                };
+
+                ActivedSlices.Insert(activingSliceSpaceEntry);
 
                 header->FreeSize = 0;
-                header->PageOffset = headPageOffset;
+                header->PageOffset = pageNumber;
                 header->PrePageOffset = -1;
                 header->NextPageOffset = -1;
                 header->ItemCount = Constants.SlicePageCount;
@@ -42,15 +51,15 @@ namespace Vicuna.Storage
                 header->LastUsedOffset = Constants.PageSize - 1;
                 header->ModifiedCount += Constants.PageSize;
                 header->UsedLength = Constants.StorageSliceDefaultUsedLength;
-                header->ActivedNodeIndex = spaceEntry.Index;
-                header->ActivedNodeOffset = spaceEntry.OwnerOffset;
+                header->ActivedNodeIndex = activingSliceSpaceEntry.Index;
+                header->ActivedNodeOffset = activingSliceSpaceEntry.OwnerOffset;
 
-                //head page
-                usage->PageOffset = headPageOffset;
-                usage->UsedLength = Constants.PageSize;
+                //head page usage
+                dataPointer->PageOffset = pageNumber;
+                dataPointer->UsedLength = Constants.PageSize;
             }
 
-            return new StorageSlice(_tx, headPage);
+            return new StorageSlice(_tx, sliceHeadPage);
         }
     }
 }

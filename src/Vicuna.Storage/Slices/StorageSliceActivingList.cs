@@ -12,59 +12,25 @@ namespace Vicuna.Storage
 
         private StorageSliceActivingNode _head;
 
-        private StorageSliceActivingNode _tail;
-
-        public StorageSliceActivingList(StorageLevelTransaction tx)
+        /// <summary>
+        /// </summary>
+        /// <param name="tx"></param>
+        /// <param name="headPageNumber"></param>
+        public StorageSliceActivingList(StorageLevelTransaction tx, long headPageNumber = -1)
         {
             _tx = tx;
+            _head = GetHeadNode(headPageNumber);
         }
 
-        public StorageSliceActivingList(StorageLevelTransaction tx, long headNodePageOffset, long tailNodePageOffset)
+        public void Insert(StorageSliceSpaceEntry entry)
         {
-            _tx = tx;
-
-            if (headNodePageOffset == -1)
+            if (_head.IsFull)
             {
-                
-            }
-        }
-
-        public StorageSliceSpaceEntry Insert(long slicePageOffset, int usedLength)
-        {
-            var node = null as StorageSliceActivingNode;
-            var usage = new SpaceUsage(slicePageOffset, usedLength);
-
-            if (!_head.IsFull)
-            {
-                return new StorageSliceSpaceEntry()
-                {
-                    Index = _head.Insert(usage),
-                    OwnerOffset = _head.PageOffset,
-                    Usage = usage
-                };
+                _head = CreateNode(_head);
             }
 
-            if (!_tx.AllocatePage(out var newNodePage))
-            {
-                throw new InvalidOperationException("alloc new page failed!");
-            }
-
-            var newNode = new StorageSliceActivingNode(newNodePage)
-            {
-                PrePageOffset = -1,
-                NextPageOffset = _head.NextPageOffset,
-            };
-
-            _head.PrePageOffset = _tail.PageOffset;
-            _tail.NextPageOffset = _head.PageOffset;
-            _head = newNode;
-
-            return new StorageSliceSpaceEntry()
-            {
-                Index = newNode.Insert(usage),
-                OwnerOffset = newNode.PageOffset,
-                Usage = usage
-            };
+            entry.OwnerOffset = _head.PageOffset;
+            entry.Index = _head.Insert(entry.Usage);
         }
 
         public void Delete(StorageSliceSpaceEntry entry)
@@ -79,13 +45,7 @@ namespace Vicuna.Storage
                 throw new IndexOutOfRangeException(nameof(entry.Index));
             }
 
-            var ownerPage = _tx.GetPageToModify(entry.OwnerOffset);
-            if (ownerPage == null)
-            {
-                throw new NullReferenceException(nameof(ownerPage));
-            }
-
-            var node = new StorageSliceActivingNode(ownerPage);
+            var node = GetNode(entry.OwnerOffset);
 
             node.Delete(entry.Index);
         }
@@ -102,13 +62,7 @@ namespace Vicuna.Storage
                 throw new IndexOutOfRangeException(nameof(entry.Index));
             }
 
-            var ownerPage = _tx.GetPageToModify(entry.OwnerOffset);
-            if (ownerPage == null)
-            {
-                throw new NullReferenceException(nameof(ownerPage));
-            }
-
-            var node = new StorageSliceActivingNode(ownerPage);
+            var node = GetNode(entry.OwnerOffset);
 
             node.Update(entry);
         }
@@ -123,7 +77,50 @@ namespace Vicuna.Storage
             return ((IEnumerable<StorageSliceActivingNode>)this).GetEnumerator();
         }
 
-        public class SpaceUsageLinkedEnumerator : IEnumerator<StorageSliceActivingNode>
+        private StorageSliceActivingNode GetNode(long pageNumber)
+        {
+            if (pageNumber < 0)
+            {
+                throw new IndexOutOfRangeException(nameof(pageNumber));
+            }
+
+            var nodePage = _tx.GetPageToModify(pageNumber);
+            if (nodePage == null)
+            {
+                throw new InvalidOperationException($"load node page failed:{pageNumber}!");
+            }
+
+            return new StorageSliceActivingNode(nodePage);
+        }
+
+        private StorageSliceActivingNode GetHeadNode(long pageNumber = -1)
+        {
+            return pageNumber == -1 ? CreateNode(null) : GetNode(pageNumber);
+        }
+
+        private StorageSliceActivingNode CreateNode(StorageSliceActivingNode nextNode)
+        {
+            if (!_tx.AllocatePage(out var nodePage))
+            {
+                throw new InvalidOperationException("create node failed!");
+            }
+
+            var newNode = new StorageSliceActivingNode(nodePage)
+            {
+                PrePageOffset = -1,
+                NextPageOffset = -1
+            };
+
+            if (nextNode != null)
+            {
+                nextNode.PrePageOffset = newNode.PageOffset;
+                newNode.NextPageOffset = nextNode.PageOffset;
+            }
+
+            return newNode;
+        }
+
+        private class SpaceUsageLinkedEnumerator : IEnumerator<StorageSliceActivingNode>
         {
             private StorageLevelTransaction _tx;
 

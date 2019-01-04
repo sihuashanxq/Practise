@@ -31,18 +31,18 @@ namespace Vicuna.Storage.Pages.MMap
             {
                 var header = (PageHeader*)pointer;
 
-                header->PageOffset = _maxAllocatedPage;
-                header->PrePageOffset = -1;
-                header->NextPageOffset = -1;
+                header->PageNumber = _maxAllocatedPage;
+                header->PrePageNumber = -1;
+                header->NextPageNumber = -1;
                 header->FreeSize = Constants.PageSize - Constants.PageHeaderSize;
                 header->PageSize = Constants.PageSize;
                 header->ItemCount = 0;
                 header->Flag = (byte)PageHeaderFlag.None;
-                header->LastUsedOffset = Constants.PageHeaderSize;
+                header->LastUsedIndex = Constants.PageHeaderSize;
 
                 _maxAllocatedPage++;
 
-                Pages[header->PageOffset] = buffer;
+                Pages[header->PageNumber] = buffer;
 
                 return new Page(buffer);
             }
@@ -60,11 +60,11 @@ namespace Vicuna.Storage.Pages.MMap
             return new Page(GetBuffer(pos));
         }
 
-        public unsafe virtual byte[] GetBuffer(long pageOffset)
+        public unsafe virtual byte[] GetBuffer(long pageNumber)
         {
-            if (pageOffset < 0)
+            if (pageNumber < 0)
             {
-                throw new IndexOutOfRangeException(nameof(pageOffset));
+                throw new IndexOutOfRangeException(nameof(pageNumber));
             }
 
             if (StorageFile == null)
@@ -74,30 +74,30 @@ namespace Vicuna.Storage.Pages.MMap
 
             byte[] content = null;
 
-            if (Pages.ContainsKey(pageOffset))
+            if (Pages.ContainsKey(pageNumber))
             {
-                content = Pages[pageOffset];
+                content = Pages[pageNumber];
             }
-            else if (ReadPage(pageOffset * PageSize, out content) != PageSize)
+            else if (ReadPage(pageNumber * PageSize, out content) != PageSize)
             {
-                throw new InvalidDataException($"read page id:{pageOffset} error!");
+                throw new InvalidDataException($"read page id:{pageNumber} error!");
             }
 
-            Pages[pageOffset] = content;
+            Pages[pageNumber] = content;
 
             fixed (byte* pointer = content)
             {
                 var header = (PageHeader*)pointer;
-                if (header->ModifiedCount == 0)
+                if (header->PageNumber != pageNumber)
                 {
-                    header->PageOffset = pageOffset;
-                    header->PrePageOffset = -1;
-                    header->NextPageOffset = -1;
+                    header->PageNumber = pageNumber;
+                    header->PrePageNumber = -1;
+                    header->NextPageNumber = -1;
                     header->FreeSize = Constants.PageSize - Constants.PageHeaderSize;
                     header->PageSize = Constants.PageSize;
                     header->ItemCount = 0;
                     header->Flag = (byte)PageHeaderFlag.None;
-                    header->LastUsedOffset = Constants.PageHeaderSize;
+                    header->LastUsedIndex = Constants.PageHeaderSize;
                 }
             }
 
@@ -124,12 +124,12 @@ namespace Vicuna.Storage.Pages.MMap
 
         public override long Allocate(int pageCount)
         {
-            return  Create(pageCount);
+            return Create(pageCount);
         }
 
-        public override byte[] GetPageContent(long pageOffset)
+        public override byte[] GetPageContent(long pageNumber)
         {
-            return GetPage(pageOffset).Buffer;
+            return GetPage(pageNumber).Buffer;
         }
 
         public override void FreePage(byte[] pageContent)

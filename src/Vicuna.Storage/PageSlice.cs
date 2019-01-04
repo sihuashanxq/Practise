@@ -1,4 +1,5 @@
-﻿using Vicuna.Storage.Pages;
+﻿using System;
+using Vicuna.Storage.Pages;
 
 namespace Vicuna.Storage
 {
@@ -15,6 +16,21 @@ namespace Vicuna.Storage
             Page = page;
             Offset = offset;
             Length = length;
+        }
+
+        public void Write(byte[] buffer)
+        {
+            if (buffer == null)
+            {
+                return;
+            }
+
+            if (buffer.Length > Length)
+            {
+                throw new IndexOutOfRangeException();
+            }
+
+            Array.Copy(buffer, 0, Page.Buffer, Offset, buffer.Length);
         }
     }
 }

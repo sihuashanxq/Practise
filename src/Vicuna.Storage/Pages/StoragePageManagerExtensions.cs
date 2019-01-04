@@ -2,9 +2,9 @@ namespace Vicuna.Storage.Pages
 {
     public static class StoragePageManagerExtensions
     {
-        public static Page GetPage(this StoragePaginationManager @this,long pageOffset)
+        public static Page GetPage(this StoragePaginationManager @this,long pageNumber)
         {
-            return new Page(@this.GetPageContent(pageOffset));
+            return new Page(@this.GetPageContent(pageNumber));
         }
     }
 }

@@ -14,7 +14,7 @@ namespace Vicuna.Storage.Pages
             Buffer = buffer;
         }
 
-        public Page(long pageOffset)
+        public Page(long pageNumber)
         {
             Buffer = new byte[PageSize];
 
@@ -23,35 +23,35 @@ namespace Vicuna.Storage.Pages
                 var header = (PageHeader*)buffer;
                 if (header->ModifiedCount == 0)
                 {
-                    header->PageOffset = pageOffset;
-                    header->PrePageOffset = -1;
-                    header->NextPageOffset = -1;
+                    header->PageNumber = pageNumber;
+                    header->PrePageNumber = -1;
+                    header->NextPageNumber = -1;
                     header->ItemCount = 0;
                     header->FreeSize = Constants.PageSize - Constants.PageHeaderSize;
                     header->PageSize = Constants.PageSize;
                     header->Flag = PageHeaderFlag.None;
                     header->UsedLength = Constants.PageHeaderSize;
-                    header->LastUsedOffset = Constants.PageHeaderSize;
+                    header->LastUsedIndex = Constants.PageHeaderSize;
                 }
             }
         }
 
-        public long PageOffset
+        public long PageNumber
         {
-            get => this.GetPageOffset();
-            set => this.SetPageOffset(value);
+            get => this.GetPageNumber();
+            set => this.SetPageNumber(value);
         }
 
-        public long PrePageOffset
+        public long PrePageNumber
         {
-            get => this.GetPrePageOffset();
-            set => this.SetPrePageOffset(value);
+            get => this.GetPrePageNumber();
+            set => this.SetPrePageNumber(value);
         }
 
-        public long NextPageOffset
+        public long NextPageNumber
         {
-            get => this.GetNextPageOffset();
-            set => this.SetNextPageOffset(value);
+            get => this.GetNextPageNumber();
+            set => this.SetNextPageNumber(value);
         }
 
         public short PageSize => Constants.PageSize;
@@ -62,10 +62,10 @@ namespace Vicuna.Storage.Pages
             set => this.SetFreeLength(value);
         }
 
-        public short LastUsedOffset
+        public short LastUsedIndex
         {
-            get => this.GetLastUsedOffset();
-            set => this.SetLastUsedOffset(value);
+            get => this.GetLastUsedIndex();
+            set => this.SetLastUsedIndex(value);
         }
 
         public short ItemCount
@@ -86,16 +86,16 @@ namespace Vicuna.Storage.Pages
             set => this.SetUsedLength(value);
         }
 
-        public short FreeEntryOffset
+        public short FreeEntryIndex
         {
-            get => this.GetFreeEntryOffset();
-            set => this.SetFreeEntryOffset(value);
+            get => this.GetFreeEntryIndex();
+            set => this.SetFreeEntryIndex(value);
         }
 
         public short FreeEntryLength
         {
-            get => this.GetFreeEntryOffset();
-            set => this.SetFreeEntryOffset(value);
+            get => this.GetFreeEntryIndex();
+            set => this.SetFreeEntryIndex(value);
         }
 
         public PageHeaderFlag Flag

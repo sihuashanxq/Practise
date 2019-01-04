@@ -4,34 +4,34 @@ namespace Vicuna.Storage.Pages
 {
     public unsafe static class PageExtensions
     {
-        public static long GetPageOffset(this Page @this)
+        public static long GetPageNumber(this Page @this)
         {
-            fixed (byte* buffer = @this.Buffer) return ((PageHeader*)buffer)->PageOffset;
+            fixed (byte* buffer = @this.Buffer) return ((PageHeader*)buffer)->PageNumber;
         }
 
-        public static void SetPageOffset(this Page @this, long value)
+        public static void SetPageNumber(this Page @this, long value)
         {
-            fixed (byte* buffer = @this.Buffer) ((PageHeader*)buffer)->PageOffset = value;
+            fixed (byte* buffer = @this.Buffer) ((PageHeader*)buffer)->PageNumber = value;
         }
 
-        public static long GetPrePageOffset(this Page @this)
+        public static long GetPrePageNumber(this Page @this)
         {
-            fixed (byte* buffer = @this.Buffer) return ((PageHeader*)buffer)->PrePageOffset;
+            fixed (byte* buffer = @this.Buffer) return ((PageHeader*)buffer)->PrePageNumber;
         }
 
-        public static void SetPrePageOffset(this Page @this, long value)
+        public static void SetPrePageNumber(this Page @this, long value)
         {
-            fixed (byte* buffer = @this.Buffer) ((PageHeader*)buffer)->PageOffset = value;
+            fixed (byte* buffer = @this.Buffer) ((PageHeader*)buffer)->PrePageNumber = value;
         }
 
-        public static long GetNextPageOffset(this Page @this)
+        public static long GetNextPageNumber(this Page @this)
         {
-            fixed (byte* buffer = @this.Buffer) return ((PageHeader*)buffer)->NextPageOffset;
+            fixed (byte* buffer = @this.Buffer) return ((PageHeader*)buffer)->NextPageNumber;
         }
 
-        public static void SetNextPageOffset(this Page @this, long value)
+        public static void SetNextPageNumber(this Page @this, long value)
         {
-            fixed (byte* buffer = @this.Buffer) ((PageHeader*)buffer)->PageOffset = value;
+            fixed (byte* buffer = @this.Buffer) ((PageHeader*)buffer)->NextPageNumber = value;
         }
 
         public static short GetFreeLength(this Page @this)
@@ -44,14 +44,14 @@ namespace Vicuna.Storage.Pages
             fixed (byte* buffer = @this.Buffer) ((PageHeader*)buffer)->FreeSize = value;
         }
 
-        public static short GetLastUsedOffset(this Page @this)
+        public static short GetLastUsedIndex(this Page @this)
         {
-            fixed (byte* buffer = @this.Buffer) return ((PageHeader*)buffer)->LastUsedOffset;
+            fixed (byte* buffer = @this.Buffer) return ((PageHeader*)buffer)->LastUsedIndex;
         }
 
-        public static void SetLastUsedOffset(this Page @this, short value)
+        public static void SetLastUsedIndex(this Page @this, short value)
         {
-            fixed (byte* buffer = @this.Buffer) ((PageHeader*)buffer)->LastUsedOffset = value;
+            fixed (byte* buffer = @this.Buffer) ((PageHeader*)buffer)->LastUsedIndex = value;
         }
 
         public static short GetItemCount(this Page @this)
@@ -94,14 +94,14 @@ namespace Vicuna.Storage.Pages
             fixed (byte* buffer = @this.Buffer) ((PageHeader*)buffer)->Flag = value;
         }
 
-        public static short GetFreeEntryOffset(this Page @this)
+        public static short GetFreeEntryIndex(this Page @this)
         {
-            fixed (byte* buffer = @this.Buffer) return ((PageHeader*)buffer)->FreeEntryOffset;
+            fixed (byte* buffer = @this.Buffer) return ((PageHeader*)buffer)->FreeEntryIndex;
         }
 
-        public static void SetFreeEntryOffset(this Page @this, short value)
+        public static void SetFreeEntryIndex(this Page @this, short value)
         {
-            fixed (byte* buffer = @this.Buffer) ((PageHeader*)buffer)->FreeEntryOffset = value;
+            fixed (byte* buffer = @this.Buffer) ((PageHeader*)buffer)->FreeEntryIndex = value;
         }
 
         public static short GetFreeEntryLength(this Page @this)
@@ -118,15 +118,15 @@ namespace Vicuna.Storage.Pages
         {
             fixed (byte* buffer = @this.Buffer)
             {
-                return ((SlicePageHeader*)buffer)->ActivedNodeIndex;
+                return ((SlicePageHeader*)buffer)->AcitvedNodeIndex;
             }
         }
 
-        public static long GetAcitvedNodeOffset(this Page @this)
+        public static long GetAcitvedNodePageNumber(this Page @this)
         {
             fixed (byte* buffer = @this.Buffer)
             {
-                return ((SlicePageHeader*)buffer)->ActivedNodeOffset;
+                return ((SlicePageHeader*)buffer)->AcitvedNodePageNumber;
             }
         }
 
@@ -134,15 +134,15 @@ namespace Vicuna.Storage.Pages
         {
             fixed (byte* buffer = @this.Buffer)
             {
-                ((SlicePageHeader*)buffer)->ActivedNodeIndex = vaue;
+                ((SlicePageHeader*)buffer)->AcitvedNodeIndex = vaue;
             }
         }
 
-        public static void SetActivedNodeOffset(this Page @this, long value)
+        public static void SetActivedNodePageNumber(this Page @this, long value)
         {
             fixed (byte* buffer = @this.Buffer)
             {
-                ((SlicePageHeader*)buffer)->ActivedNodeOffset = value;
+                ((SlicePageHeader*)buffer)->AcitvedNodePageNumber = value;
             }
         }
     }

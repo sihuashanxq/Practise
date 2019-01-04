@@ -52,15 +52,26 @@ namespace Vicuna.Storage
             //{
             //    x.Insert(new SpaceUsage() { PageOffset = i, UsedLength = i });
             //}
-            var slice = new StorageSlice(tx, new Page(new Byte[16 * 1024]));
-            for (var i = 0; i < 1024 * 100; i++)
+
+            //var slice = new StorageSlice(tx, new StorageSiceHeadPage(new Byte[16 * 1024]));
+            st.Start();
+            for (var i = 0; i < 1024 * 10000; i++)
             {
-                slice.Allocate(128, out var _);
+                if (tx.Allocate(512, out var _))
+                {
+
+                }
             }
 
-            slice = new StorageSlice(tx, 0);
+            st.Stop();
+            //var entries = x.GetEntries();
+            Console.WriteLine(st.ElapsedTicks * 1.0 / Stopwatch.Frequency);
+            Console.WriteLine(st.ElapsedMilliseconds);
+            return;
+
+            var slice = new StorageSlice(tx, 0);
             st.Start();
-            for (var i = 0; i < 1024 * 2 * 14 * 20; i++)
+            for (var i = 0; i < 1024 * 2 * 14 * 200; i++)
             {
                 slice.Allocate(512, out var _);
             }

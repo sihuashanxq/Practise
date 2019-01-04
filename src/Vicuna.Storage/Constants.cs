@@ -24,13 +24,17 @@
 
         public const int PageHeaderSize = 96;
 
+        public const int PageFooterSize = 32;
+
+        public const int PageBodySize = PageSize - PageHeaderSize - PageFooterSize;
+
         public const int PageSize = Kb * 16;
 
         public const long InitFileSize = Kb * Kb * Kb * 10L;
 
         public const int SlicePageCount = Kb;
 
-        public const int StorageSliceSize = unchecked(SlicePageCount * PageSize * Kb);
+        public const int StorageSliceSize = SlicePageCount * PageSize;
 
         public const int StorageSliceDefaultUsedLength = PageSize + PageHeaderSize * (SlicePageCount - 1);
 

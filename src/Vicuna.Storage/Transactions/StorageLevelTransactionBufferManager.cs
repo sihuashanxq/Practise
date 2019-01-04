@@ -23,64 +23,64 @@ namespace Vicuna.Storage.Transactions
             ModifiedPages = new ConcurrentDictionary<long, Page>();
         }
 
-        public bool TryGetPage(long pageOffset, out Page page)
+        public bool TryGetPage(long pageNumber, out Page page)
         {
-            if (ModifiedPages.TryGetValue(pageOffset, out page))
+            if (ModifiedPages.TryGetValue(pageNumber, out page))
             {
                 return true;
             }
 
-            if (AllocatedPages.Contains(pageOffset))
+            if (AllocatedPages.Contains(pageNumber))
             {
-                page = new Page(pageOffset);
-                ModifiedPages.TryAdd(pageOffset, page);
+                page = new Page(pageNumber);
+                ModifiedPages.TryAdd(pageNumber, page);
                 return true;
             }
 
-            page = PaginationManager.GetPage(pageOffset);
+            page = PaginationManager.GetPage(pageNumber);
             return page != null;
         }
 
-        public bool TryGetPageToModify(long pageOffset, out Page modifedPage)
+        public bool TryGetPageToModify(long pageNumber, out Page modifedPage)
         {
-            if (ModifiedPages.TryGetValue(pageOffset, out modifedPage))
+            if (ModifiedPages.TryGetValue(pageNumber, out modifedPage))
             {
                 return true;
             }
 
-            if (AllocatedPages.Contains(pageOffset))
+            if (AllocatedPages.Contains(pageNumber))
             {
-                modifedPage = new Page(pageOffset);
-                ModifiedPages.TryAdd(pageOffset, modifedPage);
+                modifedPage = new Page(pageNumber);
+                ModifiedPages.TryAdd(pageNumber, modifedPage);
                 return true;
             }
 
-            var page = PaginationManager.GetPage(pageOffset);
+            var page = PaginationManager.GetPage(pageNumber);
             if (page == null)
             {
                 return false;
             }
 
             modifedPage = page.Clone();
-            ModifiedPages.TryAdd(pageOffset, modifedPage);
+            ModifiedPages.TryAdd(pageNumber, modifedPage);
             return true;
         }
 
-        public bool TryAllocateSlicePage(out long pageOffset)
+        public bool TryAllocateSlicePage(out long pageNumber)
         {
-            var sliceHeadPageOffset = PaginationManager.Allocate(Constants.SlicePageCount);
-            if (sliceHeadPageOffset < 0)
+            var sliceHeadPageNumber = PaginationManager.Allocate(Constants.SlicePageCount);
+            if (sliceHeadPageNumber < 0)
             {
-                pageOffset = -1;
+                pageNumber = -1;
                 return false;
             }
 
             for (var i = 0; i < Constants.SlicePageCount; i++)
             {
-                AllocatedPages.Add(sliceHeadPageOffset + i);
+                AllocatedPages.Add(sliceHeadPageNumber + i);
             }
 
-            pageOffset = sliceHeadPageOffset;
+            pageNumber = sliceHeadPageNumber;
             return true;
         }
     }

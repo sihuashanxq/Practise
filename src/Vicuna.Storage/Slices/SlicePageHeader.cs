@@ -25,25 +25,25 @@ namespace Vicuna.Storage.Slices
         public short ItemCount;
 
         [FieldOffset(15)]
-        public long PageOffset;
+        public long PageNumber;
 
         [FieldOffset(23)]
-        public long PrePageOffset;
+        public long PrePageNumber;
 
         [FieldOffset(31)]
-        public long NextPageOffset;
+        public long NextPageNumber;
 
         [FieldOffset(39)]
-        public short LastUsedOffset;
+        public short LastUsedIndex;
 
         [FieldOffset(41)]
         public long ModifiedCount;
 
         [FieldOffset(49)]
-        public int ActivedNodeIndex;
+        public int AcitvedNodeIndex;
 
         [FieldOffset(53)]
-        public long ActivedNodeOffset;
+        public long AcitvedNodePageNumber;
 
         [FieldOffset(61)]
         public fixed byte Reserved[33];

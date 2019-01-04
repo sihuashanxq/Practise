@@ -5,7 +5,7 @@ namespace Vicuna.Storage.Pages
     [StructLayout(LayoutKind.Explicit, Pack = 1, Size = 96)]
     public unsafe struct PageHeader
     {
-        public static PageHeader Default = new PageHeader() { PageOffset = -1 };
+        public static PageHeader Default = new PageHeader() { PageNumber = -1 };
 
         [FieldOffset(0)]
         public PageHeaderFlag Flag;
@@ -26,22 +26,22 @@ namespace Vicuna.Storage.Pages
         public short ItemCount;
 
         [FieldOffset(15)]
-        public long PageOffset;
+        public long PageNumber;
 
         [FieldOffset(23)]
-        public long PrePageOffset;
+        public long PrePageNumber;
 
         [FieldOffset(31)]
-        public long NextPageOffset;
+        public long NextPageNumber;
 
         [FieldOffset(39)]
-        public short LastUsedOffset;
+        public short LastUsedIndex;
 
         [FieldOffset(41)]
         public long ModifiedCount;
 
         [FieldOffset(49)]
-        public short FreeEntryOffset;
+        public short FreeEntryIndex;
 
         [FieldOffset(51)]
         public short FreeEntryLength;

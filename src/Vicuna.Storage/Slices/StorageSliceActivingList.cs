@@ -8,9 +8,13 @@ namespace Vicuna.Storage
 {
     public class StorageSliceActivingList : IEnumerable<StorageSliceActivingNode>
     {
-        private readonly StorageLevelTransaction _tx;
+        private long _headPageNumber;
 
         private StorageSliceActivingNode _head;
+
+        private readonly StorageLevelTransaction _tx;
+
+        internal StorageSliceActivingNode Head => _head ?? (_head = GetHeadNode(_headPageNumber));
 
         /// <summary>
         /// </summary>
@@ -19,52 +23,71 @@ namespace Vicuna.Storage
         public StorageSliceActivingList(StorageLevelTransaction tx, long headPageNumber = -1)
         {
             _tx = tx;
-            _head = GetHeadNode(headPageNumber);
+            _headPageNumber = headPageNumber;
         }
 
-        public void Insert(StorageSliceSpaceEntry entry)
+        public void Insert(StorageSlice slice)
         {
-            if (_head.IsFull)
+            if (Head.IsFull)
             {
-                _head = CreateNode(_head);
+                _head = CreateNode(Head);
+                _headPageNumber = _head.PageNumber;
             }
 
-            entry.OwnerOffset = _head.PageOffset;
-            entry.Index = _head.Insert(entry.Usage);
+            var sliceHeadPage = slice.SliceHeadPage;
+            var sliceUsage = new StorageSliceUsage(sliceHeadPage.PageNumber, sliceHeadPage.UsedLength, (short)sliceHeadPage.FreePageCount);
+
+            sliceHeadPage.ActivedNodeIndex = _head.Insert(sliceUsage);
+            sliceHeadPage.ActivedNodePageNumber = _head.PageNumber;
         }
 
-        public void Delete(StorageSliceSpaceEntry entry)
+        public void Delete(StorageSlice slice)
         {
-            if (entry == null)
+            if (slice == null)
             {
-                throw new NullReferenceException(nameof(entry));
+                throw new NullReferenceException(nameof(slice));
             }
 
-            if (entry.Index < 0)
+            var sliceHeadPage = slice.SliceHeadPage;
+            if (sliceHeadPage.ActivedNodePageNumber == -1)
             {
-                throw new IndexOutOfRangeException(nameof(entry.Index));
+                return;
             }
 
-            var node = GetNode(entry.OwnerOffset);
+            var node = GetNode(sliceHeadPage.ActivedNodePageNumber);
+            if (node == null)
+            {
+                throw new NullReferenceException(nameof(node));
+            }
 
-            node.Delete(entry.Index);
+            node.Delete(sliceHeadPage.ActivedNodeIndex);
         }
 
-        public void Update(StorageSliceSpaceEntry entry)
+        public void Update(StorageSlice slice)
         {
-            if (entry == null)
+            if (slice == null)
             {
-                throw new NullReferenceException(nameof(entry));
+                throw new NullReferenceException(nameof(slice));
             }
 
-            if (entry.Index < 0)
+            var sliceHeadPage = slice.SliceHeadPage;
+            if (sliceHeadPage.ActivedNodePageNumber == -1)
             {
-                throw new IndexOutOfRangeException(nameof(entry.Index));
+                return;
             }
 
-            var node = GetNode(entry.OwnerOffset);
+            var node = GetNode(slice.SliceHeadPage.ActivedNodePageNumber);
+            if (node == null)
+            {
+                throw new NullReferenceException(nameof(node));
+            }
 
-            node.Update(entry);
+            node.Update(new StorageSliceUsageEntry()
+            {
+                OwnerIndex = slice.SliceHeadPage.ActivedNodeIndex,
+                OwnerPageNumber = slice.SliceHeadPage.ActivedNodePageNumber,
+                Usage = new StorageSliceUsage(sliceHeadPage.PageNumber, sliceHeadPage.UsedLength, (short)sliceHeadPage.FreePageCount)
+            });
         }
 
         public IEnumerator<StorageSliceActivingNode> GetEnumerator()
@@ -107,14 +130,14 @@ namespace Vicuna.Storage
 
             var newNode = new StorageSliceActivingNode(nodePage)
             {
-                PrePageOffset = -1,
-                NextPageOffset = -1
+                PrePageNumber = -1,
+                NextPageNumber = -1
             };
 
             if (nextNode != null)
             {
-                nextNode.PrePageOffset = newNode.PageOffset;
-                newNode.NextPageOffset = nextNode.PageOffset;
+                nextNode.PrePageNumber = newNode.PageNumber;
+                newNode.NextPageNumber = nextNode.PageNumber;
             }
 
             return newNode;
@@ -141,9 +164,14 @@ namespace Vicuna.Storage
 
             public bool MoveNext()
             {
-                if (_current.NextPageOffset != -1)
+                if (_current == null)
                 {
-                    var pageContent = _tx.GetPage(_current.NextPageOffset);
+                    return false;
+                }
+
+                if (_current.NextPageNumber != -1)
+                {
+                    var pageContent = _tx.GetPage(_current.NextPageNumber);
                     if (pageContent == null)
                     {
                         return false;

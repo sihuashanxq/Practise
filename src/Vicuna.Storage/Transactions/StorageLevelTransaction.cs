@@ -3,7 +3,7 @@ using Vicuna.Storage.Pages;
 
 namespace Vicuna.Storage.Transactions
 {
-    public class StorageLevelTransaction
+    public class StorageLevelTransaction : IDisposable
     {
         private StorageSlice _lastUsedSlice;
 
@@ -11,7 +11,7 @@ namespace Vicuna.Storage.Transactions
 
         private readonly StorageSliceManager _storageSliceManager;
 
-        private readonly StorageLevelTransactionBufferManager _buffer;
+        private readonly StorageLevelTransactionBufferPool _buffer;
 
         internal StorageSlice LastUsedSlice
         {
@@ -27,13 +27,13 @@ namespace Vicuna.Storage.Transactions
             }
         }
 
-        internal StorageLevelTransactionBufferManager Buffer => _buffer;
+        internal StorageLevelTransactionBufferPool Buffer => _buffer;
 
         internal StorageSliceActivingList ActivedSlices => _activedSlices;
 
         internal StorageSliceManager StorageSliceManager => _storageSliceManager;
 
-        public StorageLevelTransaction(StorageLevelTransactionBufferManager buffer)
+        public StorageLevelTransaction(StorageLevelTransactionBufferPool buffer)
         {
             _buffer = buffer;
             _activedSlices = new StorageSliceActivingList(this);
@@ -42,7 +42,8 @@ namespace Vicuna.Storage.Transactions
 
         public bool Allocate(int size, out PageSlice pageSlice)
         {
-            if (LastUsedSlice.Allocate(size, out pageSlice))
+            if (LastUsedSlice != null &&
+                LastUsedSlice.Allocate(size, out pageSlice))
             {
                 return true;
             }
@@ -61,7 +62,8 @@ namespace Vicuna.Storage.Transactions
 
         public bool AllocatePage(out Page newPage)
         {
-            if (LastUsedSlice.AllocatePage(out newPage))
+            if (LastUsedSlice != null &&
+                LastUsedSlice.AllocatePage(out newPage))
             {
                 return true;
             }
@@ -141,9 +143,9 @@ namespace Vicuna.Storage.Transactions
             return Buffer.TryGetPageToModify(pageNumber, out var page) ? page : null;
         }
 
-        private void CeateSlice()
+        public void Dispose()
         {
-
+            Buffer.Dispose();
         }
     }
 }

@@ -16,15 +16,15 @@ namespace Vicuna.Storage.Pages
 
         public byte[] Read(long offset, int count)
         {
-            var readBytes = new byte[count];
+            var bytes = new byte[count];
 
             if (offset < _fileStream.Length)
             {
                 _fileStream.Seek(offset, SeekOrigin.Begin);
-                _fileStream.Read(readBytes);
+                _fileStream.Read(bytes);
             }
 
-            return readBytes;
+            return bytes;
         }
 
         public void Write(long offset, byte[] bytes)

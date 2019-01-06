@@ -5,19 +5,19 @@ using Vicuna.Storage.Pages;
 
 namespace Vicuna.Storage.Transactions
 {
-    public unsafe class StorageLevelTransactionBufferManager
+    public unsafe class StorageLevelTransactionBufferPool : IDisposable
     {
-        internal HashSet<long> UnUnsedPages { get; }
+        public HashSet<long> UnUnsedPages { get; }
 
-        internal HashSet<long> AllocatedPages { get; }
+        public HashSet<long> AllocatedPages { get; }
 
-        internal StoragePaginationManager PaginationManager { get; }
+        public StorageFilePageManager PageManager { get; }
 
-        internal ConcurrentDictionary<long, Page> ModifiedPages { get; }
+        public ConcurrentDictionary<long, Page> ModifiedPages { get; }
 
-        public StorageLevelTransactionBufferManager(StoragePaginationManager paginationManager)
+        public StorageLevelTransactionBufferPool(StorageFilePageManager pageManager)
         {
-            PaginationManager = paginationManager;
+            PageManager = pageManager;
             UnUnsedPages = new HashSet<long>();
             AllocatedPages = new HashSet<long>();
             ModifiedPages = new ConcurrentDictionary<long, Page>();
@@ -37,8 +37,15 @@ namespace Vicuna.Storage.Transactions
                 return true;
             }
 
-            page = PaginationManager.GetPage(pageNumber);
-            return page != null;
+            var buffer = PageManager.GetPage(pageNumber);
+            if (buffer == null)
+            {
+                page = null;
+                return false;
+            }
+
+            page = new Page(buffer);
+            return true;
         }
 
         public bool TryGetPageToModify(long pageNumber, out Page modifedPage)
@@ -55,20 +62,21 @@ namespace Vicuna.Storage.Transactions
                 return true;
             }
 
-            var page = PaginationManager.GetPage(pageNumber);
-            if (page == null)
+            var buffer = PageManager.GetPage(pageNumber);
+            if (buffer != null)
             {
-                return false;
+                modifedPage = new Page(buffer).Clone();
+                ModifiedPages.TryAdd(pageNumber, modifedPage);
+                return true;
             }
 
-            modifedPage = page.Clone();
-            ModifiedPages.TryAdd(pageNumber, modifedPage);
-            return true;
+            modifedPage = null;
+            return false;
         }
 
         public bool TryAllocateSlicePage(out long pageNumber)
         {
-            var sliceHeadPageNumber = PaginationManager.Allocate(Constants.SlicePageCount);
+            var sliceHeadPageNumber = PageManager.AppendPage(Constants.SlicePageCount);
             if (sliceHeadPageNumber < 0)
             {
                 pageNumber = -1;
@@ -82,6 +90,16 @@ namespace Vicuna.Storage.Transactions
 
             pageNumber = sliceHeadPageNumber;
             return true;
+        }
+
+        public void Dispose()
+        {
+            foreach (var item in ModifiedPages)
+            {
+                PageManager.SetPage(item.Key, item.Value.Buffer);
+            }
+
+            PageManager.Dispose();
         }
     }
 }

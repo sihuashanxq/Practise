@@ -9,12 +9,14 @@ namespace Vicuna.Storage
     {
         internal Page NodePage { get; }
 
+        internal const int Capacity = 1024;
+
         public StorageSliceActivingNode(Page nodePage)
         {
             NodePage = nodePage;
         }
 
-        public bool IsFull => NodePage.ItemCount == 1024;
+        public bool IsFull => NodePage.ItemCount == Capacity;
 
         public bool IsEmpty => NodePage.ItemCount == 0;
 
@@ -93,7 +95,7 @@ namespace Vicuna.Storage
                 }
 
                 entryPointer[count - 1].PageNumber = -1;
-                entryPointer[count - 1].UsedLength = 0;
+                entryPointer[count - 1].UsedLength = -1;
                 pageHead->ItemCount--;
             }
         }

@@ -10,9 +10,9 @@ namespace Vicuna.Storage
     {
         const int SlicePageCount = 1024;
 
-        public int FreePageCount => FreePageIndexs.Count;
+        public int FreePageCount => FreePages.Count;
 
-        public int FullPageCount => FullPageIndexs.Count;
+        public int FullPageCount => FullPages.Count;
 
         public int ActivedNodeIndex
         {
@@ -26,9 +26,9 @@ namespace Vicuna.Storage
             set => this.SetActivedNodePageNumber(value);
         }
 
-        public HashSet<int> FreePageIndexs { get; }
+        public HashSet<int> FreePages { get; }
 
-        public HashSet<int> FullPageIndexs { get; }
+        public HashSet<int> FullPages { get; }
 
         public ConcurrentDictionary<int, StorageSlicePageUsage> ActivedPageMapping { get; }
 
@@ -39,8 +39,8 @@ namespace Vicuna.Storage
 
         public StorageSiceHeadPage(byte[] buffer) : base(buffer)
         {
-            FreePageIndexs = new HashSet<int>();
-            FullPageIndexs = new HashSet<int>();
+            FreePages = new HashSet<int>();
+            FullPages = new HashSet<int>();
             ActivedPageMapping = new ConcurrentDictionary<int, StorageSlicePageUsage>();
             BuildPageEntries();
         }
@@ -138,15 +138,15 @@ namespace Vicuna.Storage
         {
             if (oldUsedLength <= Constants.PageHeaderSize)
             {
-                FreePageIndexs.Remove(index);
-                FullPageIndexs.Add(index);
+                FreePages.Remove(index);
+                FullPages.Add(index);
                 return;
             }
 
             if (oldUsedLength < Constants.PageSize - 128)
             {
                 ActivedPageMapping.TryRemove(index, out var _);
-                FullPageIndexs.Add(index);
+                FullPages.Add(index);
             }
         }
 
@@ -154,15 +154,15 @@ namespace Vicuna.Storage
         {
             if (oldUsedLength >= Constants.PageSize - 128)
             {
-                FullPageIndexs.Remove(index);
-                FreePageIndexs.Add(index);
+                FullPages.Remove(index);
+                FreePages.Add(index);
                 return;
             }
 
             if (oldUsedLength > Constants.PageHeaderSize)
             {
                 ActivedPageMapping.TryRemove(index, out var _);
-                FreePageIndexs.Add(index);
+                FreePages.Add(index);
             }
         }
 
@@ -170,14 +170,14 @@ namespace Vicuna.Storage
         {
             if (oldUsedLength >= Constants.PageSize - 128)
             {
-                FullPageIndexs.Remove(index);
+                FullPages.Remove(index);
                 ActivedPageMapping.AddOrUpdate(index, usage, (k, v) => usage);
                 return;
             }
 
             if (oldUsedLength <= Constants.PageHeaderSize)
             {
-                FreePageIndexs.Remove(index);
+                FreePages.Remove(index);
                 ActivedPageMapping.AddOrUpdate(index, usage, (k, v) => usage);
             }
         }
@@ -193,13 +193,13 @@ namespace Vicuna.Storage
                     var entry = GetPageEntry(pageEntryPointer, index);
                     if (entry.Usage.UsedLength <= Constants.PageHeaderSize)
                     {
-                        FreePageIndexs.Add(entry.Index);
+                        FreePages.Add(entry.Index);
                         continue;
                     }
 
                     if (entry.Usage.UsedLength >= Constants.PageSize - 128)
                     {
-                        FullPageIndexs.Add(entry.Index);
+                        FullPages.Add(entry.Index);
                         continue;
                     }
 

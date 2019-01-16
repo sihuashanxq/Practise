@@ -28,6 +28,8 @@
 
         public const int PageBodySize = PageSize - PageHeaderSize - PageFooterSize;
 
+        public const int PageFooterOffset = PageSize - PageFooterSize - 1;
+
         public const int PageSize = Kb * 16;
 
         public const long InitFileSize = Kb * Kb * Kb * 10L;

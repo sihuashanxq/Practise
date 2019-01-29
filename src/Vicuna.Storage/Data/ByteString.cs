@@ -5,40 +5,50 @@ namespace Vicuna.Storage.Data
 {
     public class ByteString : IComparable<ByteString>
     {
-        public byte[] ByteChars { get; }
+        public byte[] Chars { get; }
 
-        public int Length => ByteChars.Length;
+        public int Length => Chars.Length;
 
-        public ref byte Ptr => ref ByteChars[0];
+        public ref byte Ptr => ref Chars[0];
+
+        public ref byte this[int index]
+        {
+            get => ref Chars[index];
+        }
 
         public ByteString(int length)
         {
-            ByteChars = new byte[length];
+            Chars = new byte[length];
         }
 
-        public ByteString(byte[] byteChars)
+        public ByteString(byte[] value)
         {
-            ByteChars = byteChars;
+            Chars = value;
+        }
+
+        public ByteString(long value)
+        {
+            Chars = BitConverter.GetBytes(value);
         }
 
         public int CompareTo(ByteString other)
         {
-            return ByteStringComparer.CompareTo(ByteChars, other.ByteChars);
+            return ByteStringComparer.CompareTo(Chars, other.Chars);
         }
 
         public override string ToString()
         {
-            return ByteChars == null ? string.Empty : Encoding.UTF8.GetString(ByteChars);
+            return Chars == null ? string.Empty : Encoding.UTF8.GetString(Chars);
         }
 
         public long ToInt64()
         {
-            if (ByteChars == null)
+            if (Chars == null)
             {
-                throw new NullReferenceException(nameof(ByteChars));
+                throw new NullReferenceException(nameof(Chars));
             }
 
-            return BitConverter.ToInt64(ByteChars);
+            return BitConverter.ToInt64(Chars);
         }
     }
 }

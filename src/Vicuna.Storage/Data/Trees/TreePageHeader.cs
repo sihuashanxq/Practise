@@ -1,75 +1,82 @@
-﻿using System.Runtime.InteropServices;
+﻿using System;
+using System.Runtime.InteropServices;
 using Vicuna.Storage.Pages;
 
 namespace Vicuna.Storage.Data.Trees
 {
-    public enum TreeNodeType
+    [Flags]
+    public enum TreeNodeFlags : byte
     {
-        Root,
+        None = 0,
 
-        Branch,
+        Leaf = 1,
 
-        Leaf
+        Branch = 2
     }
 
-    [StructLayout(LayoutKind.Explicit, Pack = 1)]
+    public enum DataValueType : byte
+    {
+        None = 0,
+
+        Int = 1,
+
+        Bool = 2,
+
+        Date = 3,
+
+        Byte = 4,
+
+        Long = 5,
+
+        Short = 6,
+
+        Float = 7,
+
+        Double = 8,
+
+        Object = 9,
+
+        String = 10
+    }
+
+    [StructLayout(LayoutKind.Explicit, Pack = 1, Size = 96)]
     public unsafe struct TreePageHeader
     {
-        [FieldOffset(FlagOffset)]
-        public PageHeaderFlag Flag;
+        [FieldOffset(0)]
+        public PageFlags Flags;
 
-        [FieldOffset(NodeTypeOffset)]
-        public TreeNodeType NodeType;
+        [FieldOffset(1)]
+        public ushort Low;
 
-        [FieldOffset(CheckSumOffset)]
-        public int CheckSum;
+        [FieldOffset(3)]
+        public ushort High;
 
-        [FieldOffset(PageSizeOffset)]
-        public short PageSize;
-
-        [FieldOffset(ItemCountOffset)]
-        public short ItemCount;
-
-        [FieldOffset(PageNumberOffset)]
-        public long PageNumber;
-
-        [FieldOffset(PrePageNumberOffset)]
-        public long PrePageNumber;
-
-        [FieldOffset(NextPageNumberOffset)]
-        public long NextPageNumber;
-
-        [FieldOffset(KeySizeOffset)]
+        [FieldOffset(5)]
         public ushort KeySize;
 
-        [FieldOffset(ValueSizeOffset)]
-        public ushort ValueSize;
+        [FieldOffset(7)]
+        public long PageNumber;
 
-        [FieldOffset(ReservedOffset)]
-        public fixed byte Reserved[ReservedLength];
+        [FieldOffset(15)]
+        public ushort ItemCount;
 
-        public const int FlagOffset = 0;
+        [FieldOffset(17)]
+        public TreeNodeFlags NodeFlags;
 
-        public const int NodeTypeOffset = 1;
+        [FieldOffset(18)]
+        public fixed byte MetaKeys[32];
 
-        public const int CheckSumOffset = 2;
+        [FieldOffset(50)]
+        public fixed byte Reserved[46];
+    }
 
-        public const int PageSizeOffset = 6;
+    [StructLayout(LayoutKind.Explicit, Size = 2)]
+    public struct MetadataKey
+    {
+        [FieldOffset(0)]
+        public byte Size;
 
-        public const int ItemCountOffset = 8;
-
-        public const int PageNumberOffset = 10;
-
-        public const int PrePageNumberOffset = 18;
-
-        public const int NextPageNumberOffset = 26;
-
-        public const int KeySizeOffset = 34;
-
-        public const int ValueSizeOffset = 36;
-
-        public const int ReservedOffset = 38;
-
-        public const int ReservedLength = 56;
+        [FieldOffset(1)]
+        public DataValueType KeyType;
     }
 }

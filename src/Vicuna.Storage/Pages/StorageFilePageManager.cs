@@ -48,7 +48,7 @@ namespace Vicuna.Storage.Pages
                     header->FreeSize = Constants.PageSize - Constants.PageHeaderSize;
                     header->PageSize = Constants.PageSize;
                     header->ItemCount = 0;
-                    header->Flag = (byte)PageHeaderFlag.None;
+                    header->Flag = (byte)PageFlags.None;
                     header->LastUsedIndex = Constants.PageHeaderSize;
                 }
             }

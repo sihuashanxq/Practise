@@ -7,7 +7,7 @@ namespace Vicuna.Storage.Slices
     public unsafe struct SlicePageHeader
     {
         [FieldOffset(0)]
-        public PageHeaderFlag Flag;
+        public PageFlags Flag;
 
         [FieldOffset(1)]
         public int CheckSum;

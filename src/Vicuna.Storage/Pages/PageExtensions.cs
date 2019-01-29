@@ -84,12 +84,12 @@ namespace Vicuna.Storage.Pages
             fixed (byte* buffer = @this.Buffer) ((PageHeader*)buffer)->UsedLength = value;
         }
 
-        public static PageHeaderFlag GetFlag(this Page @this)
+        public static PageFlags GetFlag(this Page @this)
         {
             fixed (byte* buffer = @this.Buffer) return ((PageHeader*)buffer)->Flag;
         }
 
-        public static void SetFlag(this Page @this, PageHeaderFlag value)
+        public static void SetFlag(this Page @this, PageFlags value)
         {
             fixed (byte* buffer = @this.Buffer) ((PageHeader*)buffer)->Flag = value;
         }

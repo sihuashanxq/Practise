@@ -13,7 +13,7 @@ namespace Vicuna.Storage.Data
                 return 0;
             }
 
-            fixed (byte* xp = x.ByteChars, yp = y.ByteChars) return CompareTo(xp, yp, x.Length, y.Length);
+            fixed (byte* xp = x.Chars, yp = y.Chars) return CompareTo(xp, yp, x.Length, y.Length);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

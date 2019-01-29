@@ -8,7 +8,7 @@ namespace Vicuna.Storage.Pages
         public static PageHeader Default = new PageHeader() { PageNumber = -1 };
 
         [FieldOffset(0)]
-        public PageHeaderFlag Flag;
+        public PageFlags Flag;
 
         [FieldOffset(1)]
         public int CheckSum;

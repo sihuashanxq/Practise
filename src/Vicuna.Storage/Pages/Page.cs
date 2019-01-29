@@ -29,7 +29,7 @@ namespace Vicuna.Storage.Pages
                     header->ItemCount = 0;
                     header->FreeSize = Constants.PageSize - Constants.PageHeaderSize;
                     header->PageSize = Constants.PageSize;
-                    header->Flag = PageHeaderFlag.None;
+                    header->Flag = PageFlags.None;
                     header->UsedLength = Constants.PageHeaderSize;
                     header->LastUsedIndex = Constants.PageHeaderSize;
                 }
@@ -98,7 +98,7 @@ namespace Vicuna.Storage.Pages
             set => this.SetFreeEntryIndex(value);
         }
 
-        public PageHeaderFlag Flag
+        public PageFlags Flag
         {
             get => this.GetFlag();
             set => this.SetFlag(value);

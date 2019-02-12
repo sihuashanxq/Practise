@@ -22,15 +22,9 @@
 
         public const int Kb = 1024;
 
-        public const int PageHeaderSize = 96;
-
-        public const int PageFooterSize = 32;
-
-        public const int PageBodySize = PageSize - PageHeaderSize - PageFooterSize;
-
-        public const int PageFooterOffset = PageSize - PageFooterSize - 1;
-
         public const int PageSize = Kb * 16;
+
+        public const int PageHeaderSize = 96;
 
         public const long InitFileSize = Kb * Kb * Kb * 10L;
 
@@ -41,5 +35,11 @@
         public const int StorageSliceDefaultUsedLength = PageSize + PageHeaderSize * (SlicePageCount - 1);
 
         public const int StorageSliceDefaultFreeLength = StorageSliceSize - StorageSliceDefaultUsedLength;
+
+        public const ushort MinFreeSlotSize = 32;
+
+        public const ushort MinPaddingSize = 0x08;
+
+        public const double DefaultPaddingRate = 1.1;
     }
 }

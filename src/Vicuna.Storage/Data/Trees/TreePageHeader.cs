@@ -14,6 +14,11 @@ namespace Vicuna.Storage.Data.Trees
         Branch = 2
     }
 
+    /// <summary>
+    /// low  6-bits is the value's type
+    /// high 2-bits is the value size used byte count( string or object)
+    /// such as "helloworld", the structure is a byte[] (0x0A0x0Ahelloworld)
+    /// </summary>
     public enum DataValueType : byte
     {
         None = 0,
@@ -61,13 +66,19 @@ namespace Vicuna.Storage.Data.Trees
         public ushort ItemCount;
 
         [FieldOffset(17)]
+        public ushort UsedLength;
+
+        [FieldOffset(19)]
+        public ushort LastDeleted;
+
+        [FieldOffset(21)]
         public TreeNodeFlags NodeFlags;
 
-        [FieldOffset(18)]
+        [FieldOffset(22)]
         public fixed byte MetaKeys[32];
 
-        [FieldOffset(50)]
-        public fixed byte Reserved[46];
+        [FieldOffset(54)]
+        public fixed byte Reserved[42];
     }
 
     [StructLayout(LayoutKind.Explicit, Size = 2)]

@@ -5,16 +5,13 @@ namespace Vicuna.Storage.Data
 {
     public class ByteString : IComparable<ByteString>
     {
-        public byte[] Chars { get; }
+        internal byte[] Chars { get; }
 
-        public int Length => Chars.Length;
+        public ref byte Ptr => ref this[0];
 
-        public ref byte Ptr => ref Chars[0];
+        public uint Size => (uint)Chars.Length;
 
-        public ref byte this[int index]
-        {
-            get => ref Chars[index];
-        }
+        public ref byte this[int index] => ref Chars[index];
 
         public ByteString(int length)
         {
@@ -39,16 +36,6 @@ namespace Vicuna.Storage.Data
         public override string ToString()
         {
             return Chars == null ? string.Empty : Encoding.UTF8.GetString(Chars);
-        }
-
-        public long ToInt64()
-        {
-            if (Chars == null)
-            {
-                throw new NullReferenceException(nameof(Chars));
-            }
-
-            return BitConverter.ToInt64(Chars);
         }
     }
 }

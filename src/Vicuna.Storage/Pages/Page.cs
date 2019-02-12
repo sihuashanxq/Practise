@@ -119,11 +119,11 @@ namespace Vicuna.Storage.Pages
             }
         }
 
-        public FreeDataRecordEntry GetFreeDataRecordEntry(int offset)
+        public FreeDataEntry GetFreeDataRecordEntry(int offset)
         {
             fixed (byte* buffer = Buffer)
             {
-                return *(FreeDataRecordEntry*)&buffer[offset];
+                return *(FreeDataEntry*)&buffer[offset];
             }
         }
     }

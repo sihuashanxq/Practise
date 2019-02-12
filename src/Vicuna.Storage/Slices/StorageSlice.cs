@@ -167,11 +167,11 @@ namespace Vicuna.Storage
             fixed (byte* pagePointer = modifiedPage.Buffer)
             {
                 var modifiedPageHead = (PageHeader*)pagePointer;
-                var freeDataEntry = *(FreeDataRecordEntry*)&pagePointer[modifiedPageHead->FreeEntryIndex];
+                var freeDataEntry = *(FreeDataEntry*)&pagePointer[modifiedPageHead->FreeEntryIndex];
                 if (freeDataEntry.Next != -1)
                 {
                     modifiedPageHead->FreeEntryIndex = freeDataEntry.Next;
-                    modifiedPageHead->FreeEntryLength = ((FreeDataRecordEntry*)&pagePointer[freeDataEntry.Next])->Size;
+                    modifiedPageHead->FreeEntryLength = ((FreeDataEntry*)&pagePointer[freeDataEntry.Next])->Size;
                 }
                 else
                 {

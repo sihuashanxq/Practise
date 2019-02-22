@@ -11,7 +11,9 @@ namespace Vicuna.Storage.Data.Trees
 
         Leaf = 1,
 
-        Branch = 2
+        Branch = 2,
+
+        Primary = 4
     }
 
     /// <summary>
@@ -54,7 +56,7 @@ namespace Vicuna.Storage.Data.Trees
         public ushort Low;
 
         [FieldOffset(3)]
-        public ushort High;
+        public ushort Upper;
 
         [FieldOffset(5)]
         public ushort KeySize;
@@ -75,7 +77,7 @@ namespace Vicuna.Storage.Data.Trees
         public TreeNodeFlags NodeFlags;
 
         [FieldOffset(22)]
-        public fixed byte MetaKeys[32];
+        public fixed byte MetaKeys[16];
 
         [FieldOffset(54)]
         public fixed byte Reserved[42];

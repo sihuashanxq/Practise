@@ -1,54 +1,73 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
+using Vicuna.Storage.Transactions;
 
 namespace Vicuna.Storage.Data.Trees
 {
     public class Tree
     {
-        private TreePage _head;
-
         private bool _isMulpti;
 
-        public long Get(ByteString key)
-        {
-            var treePath = GetTreePathWithKey(key);
-            if (treePath != null)
-            {
-                var treePage = treePath.Peek();
-                if (treePage == null)
-                {
-                    throw new NullReferenceException(nameof(treePage));
-                }
+        private TreePage _root;
 
-                return treePage.Search(key, out var _, out var value) ? value : long.MinValue;
+        private StorageLevelTransaction _tx;
+
+        public const ushort MaxPageDataSize = (Constants.PageSize - Constants.PageHeaderSize) / 2 - TreeNodeHeader.SizeOf - TreeNodeTransactionHeader.SizeOf;
+
+        public TreeNodeValue Get(TreeNodeKey key)
+        {
+            var cursor = SearchForKey(key);
+            if (cursor != null)
+            {
+                //return cursor.Current.Search(key, out var _, out var value,out ) ? value : long.MinValue;
             }
 
-            return long.MinValue;
+            return new TreeNodeValue();
         }
 
-        public void Set(ByteString key, long value)
+        public void Insert(TreeNodeKey key, TreeNodeValue value, TreeNodeHeaderFlags flags)
         {
-            var treePath = GetTreePathWithKey(key);
-            var treePage = treePath.Peek();
-            if (treePage == null)
+
+            var cursor = SearchForKey(key);
+            if (cursor.Current.IsBranch)
             {
-                throw new NullReferenceException(nameof(treePage));
+                throw new InvalidOperationException();
             }
 
-
-            if (treePage.Search(key, out var index))
+            if (cursor.Current.Search(key, out var index) && !_isMulpti)
             {
-                if (!_isMulpti)
+                throw new InvalidCastException($"mulpti key");
+            }
+
+            var keySize = key.Size;
+            var valueSize = value.Size;
+            if (valueSize + keySize > MaxPageDataSize)
+            {
+                valueSize = 0;
+            }
+
+            if (!cursor.Current.Allocate(index, (ushort)(keySize + valueSize), flags, out var position))
+            {
+                if (!_tx.AllocatePage(out var newPage))
                 {
-                    throw new InvalidCastException($"mulpti key {key.ToString()}");
+                    throw new Exception(" allocate new page faild! ");
                 }
 
-                return;
+                var isStartNodeMovedToNewPage = false;
+                var currentPage = cursor.Current;
+
+                currentPage.CopyRightSideEntriesToNewPage(index, null, out isStartNodeMovedToNewPage);
+                //split page
             }
 
-            treePage.Insert(key, value, index);
-            SplitTreePage(treePage, treePath);
+            cursor.Current.InsertDataNode(index, position, key, value, 0);
+        }
+
+        public void Split(TreePathCursor cursor, int index)
+        {
+
         }
 
         public void SplitTreePage(TreePage treePage, Stack<TreePage> treePath)
@@ -81,7 +100,7 @@ namespace Vicuna.Storage.Data.Trees
         public void SplitTreePage(TreePage parentPage, TreePage treePage, TreePage nextPage, Stack<TreePage> treePath)
         {
             var index = treePage.Header.ItemCount / 2;
-            var midKey = treePage.GetKey(index);
+            //var midKey = treePage.GetKey(index);
             var movedPairs = treePage.Remove(index, treePage.Header.ItemCount - index);
 
             for (var i = treePage.IsBranch ? 1 : 0; i < movedPairs.Count; i++)
@@ -95,31 +114,6 @@ namespace Vicuna.Storage.Data.Trees
             }
 
             SplitTreePage(parentPage, treePage, nextPage, midKey, treePath);
-        }
-
-        public void SplitTreePage2(TreePage parentPage, long pageNumber, long nextPageNumber, ByteString midKey)
-        {
-            if (parentPage.Header.ItemCount == 0)
-            {
-                parentPage.Insert(midKey, new ByteString(Encoding.UTF8.GetBytes(pageNumber.ToString()), 8), 0);
-                parentPage.Insert(new ByteString(8), new ByteString(Encoding.UTF8.GetBytes(nextPageNumber.ToString()), 8), 1);
-                return;
-            }
-
-            //1.5   2.5     0
-            //1     2       4
-            //1.5     2.5      3.5        0
-            //1       2         3         4
-            var found = parentPage.Search(midKey, out var index);
-            if (index < parentPage.Header.ItemCount - 1)
-            {
-                parentPage.Insert(midKey, new ByteString(Encoding.UTF8.GetBytes(nextPageNumber.ToString()), 8), index);
-            }
-            else
-            {
-                parentPage.SetPageRef(midKey, parentPage.Header.ItemCount - 1);
-                parentPage.Insert(new ByteString(8), new ByteString(Encoding.UTF8.GetBytes(nextPageNumber.ToString()), 8), parentPage.Header.ItemCount);
-            }
         }
 
         public void SplitTreePage(TreePage parentPage, TreePage treePage, TreePage nextPage, ByteString midKey, Stack<TreePage> treePath)
@@ -170,35 +164,88 @@ namespace Vicuna.Storage.Data.Trees
         //    }
         //}
 
-        private Stack<TreePage> GetTreePathWithKey(ByteString key)
+        private TreePathCursor SearchForKey(TreeNodeKey key)
         {
-            var path = new Stack<TreePage>(new[] { _head });
-            var treePage = _head;
+            var cursor = new TreePathCursor(new[] { _root });
+            var page = _root;
 
-            while (treePage.Header.NodeType != TreeNodeFlags.Leaf)
+            while (!page.IsLeaf)
             {
-                treePage.Search(key, out var index, out var value);
-                treePage = GetTreePage(value.ToInt64());
-
-                path.Push(treePage);
+                if (page.Search(key, out var index, out var _, out var node) && node.HasValue)
+                {
+                    page = GetTreePage(node.Value.PageNumber);
+                    cursor.Push(page);
+                }
             }
 
-            if (treePage == null)
+            if (page.Header.NodeFlags != TreeNodeFlags.Leaf)
             {
-                throw new NullReferenceException(nameof(treePage));
+                throw new InvalidOperationException($"tree page:{page.Header.PageNumber} is not a leaf b-tree page!");
             }
 
-            if (treePage.Header.NodeType != TreeNodeFlags.Leaf)
-            {
-                throw new InvalidOperationException($"tree page:{treePage.Header.PageNumber} is not a leaf b-tree page!");
-            }
-
-            return path;
+            return cursor;
         }
 
         private TreePage GetTreePage(long pageNumber)
         {
             return null;
+        }
+    }
+
+    public class TreePathCursor
+    {
+        internal List<TreePage> Pages { get; }
+
+        public int Count
+        {
+            get => Pages.Count;
+        }
+
+        public TreePage Parent
+        {
+            get => Count > 1 ? Pages[Count - 2] : null;
+        }
+
+        public TreePage Current
+        {
+            get => Pages.LastOrDefault();
+        }
+
+        internal TreePathCursor()
+        {
+            Pages = new List<TreePage>();
+        }
+
+        internal TreePathCursor(IEnumerable<TreePage> pages) : this()
+        {
+            foreach (var item in pages)
+            {
+                Pages.Add(item);
+            }
+        }
+
+        public TreePage Pop()
+        {
+            if (Count == 0)
+            {
+                return null;
+            }
+
+            var page = Current;
+
+            Pages.RemoveAt(Count - 1);
+
+            return page;
+        }
+
+        public void Push(TreePage newPage)
+        {
+            Pages.Add(newPage);
+        }
+
+        public TreePathCursor CreateScope()
+        {
+            return new TreePathCursor(Pages);
         }
     }
 }

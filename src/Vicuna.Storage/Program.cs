@@ -27,46 +27,63 @@ namespace Vicuna.Storage
 
         static void Main(string[] args)
         {
-            var x = new byte[1024];
-            var n = new byte[32];
+            var pp = new StorageFilePageManager(1024 * 100, new StorageFile(new FileStream(@"4.txt", FileMode.OpenOrCreate)));
             var st = new Stopwatch();
+            var tx = new StorageLevelTransaction(new Transactions.StorageLevelTransactionBufferPool(pp));
+            var bytes = Encoding.UTF8.GetBytes("what are your name!");
+            var tree = new Data.Trees.Tree()
+            {
+                _tx = tx
+            };
 
-            Array.Copy(x, 0, n, 0, 32);
-            Unsafe.CopyBlockUnaligned(ref x[0], ref n[0], 16);
+            var mixLen = 10;
 
+            for (var i = 0; i < 200; i++)
+            {
+                if (i == 115)
+                {
+
+                }
+                var keyString = i.ToString();
+                var size = Encoding.UTF8.GetBytes(keyString);
+                Span<byte> span = new byte[size.Length + 1];
+
+                span[0] = (byte)size.Length;
+
+                size.AsSpan().CopyTo(span.Slice(1));
+
+                tree.Insert(new Data.Trees.TreeNodeKey(span), new Data.Trees.TreeNodeValue(BitConverter.GetBytes(i).AsSpan()), Data.Trees.TreeNodeHeaderFlags.Data);
+            }
 
             st.Start();
-            for(var i = 0; i < 10000000; i++)
+            var str = new List<string>();
+            for (var i = 0; i < 200; i++)
             {
-                Array.Copy(x, 0, n, 0, 16);
+                var value = tree._root.GetNodeKey(i);
+                str.Add(System.Text.Encoding.UTF8.GetString(value.Keys.Slice(1)));
+                Console.WriteLine();
             }
-            st.Stop();
-            Console.WriteLine(st.ElapsedMilliseconds);
 
-            st.Reset();
-            st.Start();
-            for (var i = 0; i < 10000000; i++)
+            for (var n = 0; n < 1000; n++)
             {
-                Unsafe.CopyBlockUnaligned(ref n[0], ref x[0], 16);
+                var i = n % 200;
+                var keyString = i.ToString();
+                var size = Encoding.UTF8.GetBytes(keyString);
+                Span<byte> span = new byte[size.Length + 1];
+
+                span[0] = (byte)size.Length;
+
+                size.AsSpan().CopyTo(span.Slice(1));
+
+                var value = tree.Get(new Data.Trees.TreeNodeKey(span));
+                Console.WriteLine(BitConverter.ToInt32(value.Values));
+                //if (value.Size > 0)
+                //    Console.WriteLine(BitConverter.ToInt32(value.Values));
             }
+
+            tx.Dispose();
             st.Stop();
-            Console.WriteLine(st.ElapsedMilliseconds);
-
-
-            //var pp = new StorageFilePageManager(1024 * 100, new StorageFile(new FileStream(@"4.txt", FileMode.OpenOrCreate)));
-            //var st = new Stopwatch();
-            //var tx = new StorageLevelTransaction(new Transactions.StorageLevelTransactionBufferPool(pp));
-            //var bytes = Encoding.UTF8.GetBytes("what are your name!");
-
-            //st.Start();
-            //for (var i = 0; i < 1024 * 100; i++)
-            //{
-            //    var p = tx.GetPage(i);
-            //}
-
-            //tx.Dispose();
-            //st.Stop();
-            //Console.WriteLine(st.ElapsedTicks * 1.0 / Stopwatch.Frequency);
+            Console.WriteLine(st.ElapsedMilliseconds * 1.0 / 1000000);
         }
     }
 }

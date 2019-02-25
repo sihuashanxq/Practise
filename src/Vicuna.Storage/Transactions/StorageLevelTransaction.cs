@@ -80,6 +80,46 @@ namespace Vicuna.Storage.Transactions
             return _lastUsedSlice.AllocatePage(out newPage);
         }
 
+        public bool AllocateTreePage(out Data.Trees.TreePage newPage2)
+        {
+            if (LastUsedSlice != null &&
+                LastUsedSlice.AllocatePage(out var newPage))
+            {
+                newPage2 = new Data.Trees.TreePage(newPage.Buffer);
+                newPage2.Header.PageNumber = newPage.PageNumber;
+                newPage2.Header.UsedLength = Constants.PageHeaderSize;
+                newPage2.Header.ItemCount = 0;
+                newPage2.Header.Low = Constants.PageHeaderSize;
+                newPage2.Header.Upper = Constants.PageSize;
+                return true;
+            }
+
+            if (AllocatePageFromActivedSlice(out newPage))
+            {
+                newPage2 = new Data.Trees.TreePage(newPage.Buffer);
+                newPage2.Header.PageNumber = newPage.PageNumber;
+                newPage2.Header.UsedLength = Constants.PageHeaderSize;
+                newPage2.Header.ItemCount = 0;
+                newPage2.Header.Low = Constants.PageHeaderSize;
+                newPage2.Header.Upper = Constants.PageSize;
+                return true;
+            }
+
+            _lastUsedSlice?.Dispose();
+            _lastUsedSlice = StorageSliceManager.CreateSlice();
+            _activedSlices.Insert(_lastUsedSlice);
+
+            var b = _lastUsedSlice.AllocatePage(out newPage);
+
+            newPage2 = new Data.Trees.TreePage(newPage.Buffer);
+            newPage2.Header.PageNumber = newPage.PageNumber;
+            newPage2.Header.UsedLength = Constants.PageHeaderSize;
+            newPage2.Header.ItemCount = 0;
+            newPage2.Header.Low = Constants.PageHeaderSize;
+            newPage2.Header.Upper = Constants.PageSize;
+            return b;
+        }
+
         public bool AllocateFromActivedSlice(int size, out PageSlice pageSlice)
         {
             foreach (var item in ActivedSlices)
@@ -141,6 +181,17 @@ namespace Vicuna.Storage.Transactions
         public Page GetPageToModify(long pageNumber)
         {
             return Buffer.TryGetPageToModify(pageNumber, out var page) ? page : null;
+        }
+
+        public byte[] GetPageToModify2(long pageNumber)
+        {
+            var p = Buffer.TryGetPageToModify(pageNumber, out var page) ? page : null;
+            if (p != null)
+            {
+                return p.Buffer;
+            }
+
+            return null;
         }
 
         public void Dispose()

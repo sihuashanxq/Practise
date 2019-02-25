@@ -13,7 +13,7 @@ namespace Vicuna.Storage.Data
                 return 0;
             }
 
-            fixed (byte* xp = x.Chars, yp = y.Chars) return CompareTo(xp, yp, x.Length, y.Length);
+            fixed (byte* xp = x.Chars, yp = y.Chars) return CompareTo(xp, yp, x.Chars.Length, y.Chars.Length);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -44,7 +44,14 @@ namespace Vicuna.Storage.Data
                         lyp += 4;
                     }
 
-                    return (lxp[0] - lyp[0]) | (lxp[1] - lxp[1]) | (lxp[2] - lyp[2]) | (lxp[3] - lyp[3]);
+                    for (var n = 0; n < 4; n++)
+                    {
+                        var flag = lxp[n] - lyp[n];
+                        if (flag != 0)
+                        {
+                            return flag;
+                        }
+                    }
                 }
 
                 lxp += 8;
@@ -55,7 +62,14 @@ namespace Vicuna.Storage.Data
             {
                 if (*(int*)lxp != *(int*)lyp)
                 {
-                    return (lxp[0] - lyp[0]) | (lxp[1] - lxp[1]) | (lxp[2] - lyp[2]) | (lxp[3] - lyp[3]);
+                    for (var n = 0; n < 4; n++)
+                    {
+                        var flag = lxp[n] - lyp[n];
+                        if (flag != 0)
+                        {
+                            return flag;
+                        }
+                    }
                 }
 
                 lxp += 4;
@@ -66,7 +80,14 @@ namespace Vicuna.Storage.Data
             {
                 if (*(short*)lxp != *(short*)lyp)
                 {
-                    return (lxp[0] - lyp[0]) | (lxp[1] - lxp[1]);
+                    for (var n = 0; n < 2; n++)
+                    {
+                        var flag = lxp[n] - lyp[n];
+                        if (flag != 0)
+                        {
+                            return flag;
+                        }
+                    }
                 }
 
                 lxp += 2;

@@ -70,4 +70,3 @@ namespace Vicuna.Storage
         }
     }
 }
-}

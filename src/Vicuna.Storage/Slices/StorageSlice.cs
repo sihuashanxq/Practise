@@ -167,18 +167,6 @@ namespace Vicuna.Storage
             fixed (byte* pagePointer = modifiedPage.Buffer)
             {
                 var modifiedPageHead = (PageHeader*)pagePointer;
-                var freeDataEntry = *(FreeDataEntry*)&pagePointer[modifiedPageHead->FreeEntryIndex];
-                if (freeDataEntry.Next != -1)
-                {
-                    modifiedPageHead->FreeEntryIndex = freeDataEntry.Next;
-                    modifiedPageHead->FreeEntryLength = ((FreeDataEntry*)&pagePointer[freeDataEntry.Next])->Size;
-                }
-                else
-                {
-                    modifiedPageHead->FreeEntryIndex = -1;
-                    modifiedPageHead->FreeEntryLength = -1;
-                }
-
                 if (modifiedPageHead->LastUsedIndex >= Constants.PageSize - 1 &&
                     modifiedPageHead->FreeEntryIndex == -1)
                 {
@@ -186,7 +174,6 @@ namespace Vicuna.Storage
                     modifiedPageHead->ItemCount++;
                     modifiedPageHead->FreeSize = 0;
                     modifiedPageHead->UsedLength = Constants.PageSize;
-                    modifiedPageHead->ModifiedCount += freeDataEntry.Size;
 
                     _activedPageEntry = null;
                     SliceHeadPage.SetPageEntry(pageEntry.Index, pageHeader.UsedLength, modifiedPageHead->UsedLength);

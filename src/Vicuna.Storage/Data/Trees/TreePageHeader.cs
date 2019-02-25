@@ -23,7 +23,7 @@ namespace Vicuna.Storage.Data.Trees
     /// </summary>
     public enum DataValueType : byte
     {
-        None = 0,
+        None = 255,
 
         Int = 1,
 

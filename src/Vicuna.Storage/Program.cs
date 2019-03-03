@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Diagnostics;
 using System.IO;
-using Vicuna.Storage.Trees;
 using System.Collections.Generic;
 using Vicuna.Storage.Pages;
 using Vicuna.Storage.Transactions;
@@ -38,9 +37,9 @@ namespace Vicuna.Storage
 
             var mixLen = 10;
 
-            for (var i = 0; i < 200; i++)
+            for (var i = 0; i < 200000; i++)
             {
-                if (i == 115)
+                if (i == 140684)
                 {
 
                 }
@@ -53,20 +52,13 @@ namespace Vicuna.Storage
                 size.AsSpan().CopyTo(span.Slice(1));
 
                 tree.Insert(new Data.Trees.TreeNodeKey(span), new Data.Trees.TreeNodeValue(BitConverter.GetBytes(i).AsSpan()), Data.Trees.TreeNodeHeaderFlags.Data);
-            }
+            };
 
             st.Start();
             var str = new List<string>();
-            for (var i = 0; i < 200; i++)
-            {
-                var value = tree._root.GetNodeKey(i);
-                str.Add(System.Text.Encoding.UTF8.GetString(value.Keys.Slice(1)));
-                Console.WriteLine();
-            }
 
-            for (var n = 0; n < 1000; n++)
+            for (var i = 0; i < 200000; i++)
             {
-                var i = n % 200;
                 var keyString = i.ToString();
                 var size = Encoding.UTF8.GetBytes(keyString);
                 Span<byte> span = new byte[size.Length + 1];

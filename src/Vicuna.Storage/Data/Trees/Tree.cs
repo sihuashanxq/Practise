@@ -47,7 +47,7 @@ namespace Vicuna.Storage.Data.Trees
                     *p = (byte)DataValueType.String;
                 }
 
-                cursor.Current = new TreePathEntry(0, newPage);
+                cursor.Current = new TreePageEntry(0, newPage);
                 cursor.Current.Page.Header.Flags = Pages.PageFlags.Data;
                 cursor.Current.Page.Header.NodeFlags = TreeNodeFlags.Leaf;
                 _root = cursor.Current.Page;
@@ -74,14 +74,23 @@ namespace Vicuna.Storage.Data.Trees
                 size += (ushort)value.Size;
             }
 
+            if (currentPage.Header.PageNumber == 102987)
+            {
+
+            }
+
             var currentEntry = cursor.Modify(_tx);
             if (currentEntry.Page.Allocate(index, size, flags, out var position))
             {
                 currentEntry.Page.InsertDataNode(index, position, key, value, 0);
+                if (cursor.IsRootChanged)
+                {
+                    _root = cursor.Pages[0].Page;
+                }
                 return;
             }
 
-            if (CopyEntriesResult.StartNodeMovedToNewPage == Split(cursor, index))
+            if (CopyEntriesResult.StartNodeMovedToNewPage == Split(cursor, key, index))
             {
                 index = 0;
                 currentEntry = cursor.Current;
@@ -90,13 +99,17 @@ namespace Vicuna.Storage.Data.Trees
             if (currentEntry.Page.Allocate(index, size, flags, out position))
             {
                 currentEntry.Page.InsertDataNode(index, position, key, value, 0);
+                if (cursor.IsRootChanged)
+                {
+                    _root = cursor.Pages[0].Page;
+                }
                 return;
             }
 
             throw new Exception();
         }
 
-        public unsafe CopyEntriesResult Split(TreePathCursor cursor, int index)
+        public unsafe CopyEntriesResult Split(TreePageCursor cursor, TreeNodeKey key, int index)
         {
             if (!_tx.AllocateTreePage(out var newPage))
             {
@@ -108,29 +121,42 @@ namespace Vicuna.Storage.Data.Trees
                 *p = (byte)DataValueType.String;
             }
 
+            if (newPage.Header.PageNumber == 102987)
+            {
 
+            }
+
+            newPage.Header.Flags = cursor.Current.Page.Header.Flags;
+            newPage.Header.NodeFlags = cursor.Current.Page.Header.NodeFlags;
             using (cursor.CreateScope())
             {
                 var current = cursor.Current;
-                var newEntry = new TreePathEntry(current.Index + 1, newPage);
+                var newEntry = new TreePageEntry(current.Index + 1, newPage);
                 var currrentPage = current.Page;
-                if (currrentPage.CopyRightSideEntriesToNewPage(index, null) == CopyEntriesResult.StartNodeMovedToNewPage)
+                if (index == currrentPage.Header.ItemCount)
                 {
                     cursor.Current = newEntry;
                     cursor.Pop();
-                    Split(cursor, newEntry);
+                    Split(cursor, key, current, newEntry);
+                    return CopyEntriesResult.StartNodeMovedToNewPage;
+                }
+
+                if (currrentPage.CopyRightSideEntriesToNewPage(index, newPage) == CopyEntriesResult.StartNodeMovedToNewPage)
+                {
+                    cursor.Current = newEntry;
+                    cursor.Pop();
+                    Split(cursor, key, current, newEntry);
                     return CopyEntriesResult.StartNodeMovedToNewPage;
                 }
 
                 cursor.Pop();
-                Split(cursor, newEntry);
+                Split(cursor, newEntry.Page.MinKey, current, newEntry);
                 return CopyEntriesResult.Normal;
             }
         }
 
-        public unsafe void Split(TreePathCursor cursor, TreePathEntry newEntry)
+        public unsafe void Split(TreePageCursor cursor, TreeNodeKey key, TreePageEntry currentEntry, TreePageEntry newEntry)
         {
-            var key = newEntry.Page.GetNodeKey(0);
             var parent = cursor.Current;
             if (parent == null)
             {
@@ -144,26 +170,61 @@ namespace Vicuna.Storage.Data.Trees
                     *p = (byte)DataValueType.String;
                 }
 
+                parentPage.Header.Flags = Pages.PageFlags.None;
+                parentPage.Header.NodeFlags = TreeNodeFlags.Branch;
+
                 //root
-                parent = cursor.Current = new TreePathEntry(0, parentPage);
+                parent = cursor.Current = new TreePageEntry(0, parentPage);
             }
             else
             {
                 parent = cursor.Modify(_tx);
             }
 
-            if (!parent.Page.Allocate(newEntry.Index, (ushort)(key.Size + sizeof(long)), TreeNodeHeaderFlags.PageRef, out var position))
-            {
-                var halfEntryCount = parent.Page.Header.ItemCount / 2;
+            AddParentNodePageRef(cursor, key, parent, currentEntry, newEntry);
+        }
 
-                if (CopyEntriesResult.StartNodeMovedToNewPage == Split(cursor, halfEntryCount))
+        public unsafe void AddParentNodePageRef(TreePageCursor cursor, TreeNodeKey key, TreePageEntry parentEntry, TreePageEntry currentEntry, TreePageEntry newEntry)
+        {
+            if (newEntry.Page.Header.PageNumber == 103167)
+            {
+                Console.WriteLine(parentEntry.Page.Header.Upper);
+            }
+
+            if (parentEntry.Page.Header.ItemCount == 0)
+            {
+                newEntry.Index = 1;
+                currentEntry.Index = 0;
+
+                if (!parentEntry.Page.Allocate(currentEntry.Index, (ushort)(key.Size + sizeof(long)), TreeNodeHeaderFlags.PageRef, out var currentEntryPosition))
+                {
+                    throw new Exception("");
+                }
+
+                if (!parentEntry.Page.Allocate(newEntry.Index, sizeof(long), TreeNodeHeaderFlags.PageRef, out var newEntryPosition))
+                {
+                    throw new Exception("");
+                }
+
+                parentEntry.Page.InsertPageRefNode(0, currentEntryPosition, key, currentEntry.Page.Header.PageNumber);
+                parentEntry.Page.InsertPageRefNode(1, newEntryPosition, new TreeNodeKey(), newEntry.Page.Header.PageNumber);
+                return;
+            }
+
+            var index = currentEntry.Index;
+
+            if (!parentEntry.Page.Allocate(index, (ushort)(key.Size + sizeof(long)), TreeNodeHeaderFlags.PageRef, out var position))
+            {
+                var halfEntryCount = parentEntry.Page.Header.ItemCount / 2;
+                var halfEntryKey = parentEntry.Page.GetNodeKey(halfEntryCount);
+                if (CopyEntriesResult.StartNodeMovedToNewPage == Split(cursor, halfEntryKey, halfEntryCount))
                 {
                     if (halfEntryCount < newEntry.Index)
                     {
                         newEntry.Index = halfEntryCount - newEntry.Index - 1;
                     }
 
-                    parent = cursor.Current;
+                    parentEntry = cursor.Current;
                 }
                 else
                 {
@@ -172,33 +233,44 @@ namespace Vicuna.Storage.Data.Trees
                         newEntry.Index = halfEntryCount - newEntry.Index;
                     }
                 }
+
+                if (!parentEntry.Page.Allocate(newEntry.Index, (ushort)(key.Size + sizeof(long)), TreeNodeHeaderFlags.PageRef, out position))
+                {
+                    throw new Exception("");
+                }
             }
 
-            if (!parent.Page.Allocate(newEntry.Index, (ushort)(key.Size + sizeof(long)), TreeNodeHeaderFlags.PageRef, out position))
+            if (newEntry.Index == parentEntry.Page.Header.ItemCount - 2)
             {
-                throw new Exception("");
+
             }
 
-            if (newEntry.Index < parent.Page.Header.ItemCount - 1)
+            if (newEntry.Index <= parentEntry.Page.Header.ItemCount - 1)
             {
-                parent.Page.InsertPageRefNode(newEntry.Index + 1, position, key, newEntry.Page.Header.PageNumber);
+                var offset = parentEntry.Page.GetNodeOffset(index + 1);
+                ref var node = ref parentEntry.Page.GetNodeHeader(offset);
+
+                node.PageNumber = newEntry.Page.Header.PageNumber;
+
+                parentEntry.Page.InsertPageRefNode(index, position, key, currentEntry.Page.Header.PageNumber);
             }
             else
             {
-                var offset = parent.Page.GetNodeOffset(parent.Page.Header.ItemCount - 1);
-                ref var node = ref parent.Page.GetNodeHeader(offset);
+                var offset = parentEntry.Page.GetNodeOffset(parentEntry.Page.Header.ItemCount - 1);
+                ref var node = ref parentEntry.Page.GetNodeHeader(offset);
 
-                parent.Page.InsertPageRefNode(newEntry.Index, position, key, node.PageNumber);
+                parentEntry.Page.InsertPageRefNode(newEntry.Index, position, key, node.PageNumber);
 
                 node.PageNumber = newEntry.Page.Header.PageNumber;
 
                 newEntry.Index++;
             }
+
         }
 
-        private TreePathCursor SearchForKey(TreeNodeKey key)
+        private TreePageCursor SearchForKey(TreeNodeKey key)
         {
-            var cursor = new TreePathCursor();
+            var cursor = new TreePageCursor();
             var page = _root;
             if (page == null)
             {
@@ -207,24 +279,23 @@ namespace Vicuna.Storage.Data.Trees
             }
 
             cursor.Push(null);
-            cursor.Push(new TreePathEntry(0, _root));
+            cursor.Push(new TreePageEntry(0, _root));
+
+            while (!page.IsLeaf)
+            {
+                if (page.Search(key, out var index, out var _, out var node) == 0 && node.HasValue)
+                {
+                    page = GetPage(node.Value.PageNumber);
+                    cursor.Push(new TreePageEntry(index, page));
+                }
+            }
+
+            if (page.Header.NodeFlags != TreeNodeFlags.Leaf)
+            {
+                throw new InvalidOperationException($"tree page:{page.Header.PageNumber} is not a leaf b-tree page!");
+            }
 
             return cursor;
-            //while (!page.IsLeaf)
-            //{
-            //    if (page.Search(key, out var index, out var _, out var node) && node.HasValue)
-            //    {
-            //        page = GetPage(node.Value.PageNumber);
-            //        cursor.Push(new TreePathEntry(index, page));
-            //    }
-            //}
-
-            //if (page.Header.NodeFlags != TreeNodeFlags.Leaf)
-            //{
-            //    throw new InvalidOperationException($"tree page:{page.Header.PageNumber} is not a leaf b-tree page!");
-            //}
-
-            //return cursor;
         }
 
         private unsafe TreePage GetPage(long pageNumber)
@@ -250,20 +321,20 @@ namespace Vicuna.Storage.Data.Trees
         }
     }
 
-    public class TreePathCursor
+    public class TreePageCursor
     {
         public int Index;
 
-        public List<TreePathEntry> Pages;
+        public List<TreePageEntry> Pages;
 
-        public bool IsRootChanged { get; set; }
+        public bool IsRootChanged => Pages[0] != null;
 
-        public TreePathEntry Parent
+        public TreePageEntry Parent
         {
             get => Pages.Count > 1 ? Pages[Pages.Count - 2] : null;
         }
 
-        public TreePathEntry Current
+        public TreePageEntry Current
         {
             get
             {
@@ -285,13 +356,13 @@ namespace Vicuna.Storage.Data.Trees
             }
         }
 
-        internal TreePathCursor()
+        internal TreePageCursor()
         {
             Index = -1;
-            Pages = new List<TreePathEntry>();
+            Pages = new List<TreePageEntry>();
         }
 
-        internal TreePathCursor(IEnumerable<TreePathEntry> pages) : this()
+        internal TreePageCursor(IEnumerable<TreePageEntry> pages) : this()
         {
             foreach (var item in pages)
             {
@@ -299,7 +370,7 @@ namespace Vicuna.Storage.Data.Trees
             }
         }
 
-        public TreePathEntry Pop()
+        public TreePageEntry Pop()
         {
             if (Index > Pages.Count)
             {
@@ -313,7 +384,7 @@ namespace Vicuna.Storage.Data.Trees
             return page;
         }
 
-        public void Push(TreePathEntry newPage)
+        public void Push(TreePageEntry newPage)
         {
             if (Index >= Pages.Count - 1)
             {
@@ -327,11 +398,11 @@ namespace Vicuna.Storage.Data.Trees
             }
         }
 
-        public TreePathEntry Modify(StorageLevelTransaction tx)
+        public TreePageEntry Modify(StorageLevelTransaction tx)
         {
             var page = tx.GetPageToModify2(Current.Page.Header.PageNumber);
 
-            return Current = new TreePathEntry(Current.Index, new TreePage(page));
+            return Current = new TreePageEntry(Current.Index, new TreePage(page));
         }
 
         public void Reset()
@@ -339,19 +410,19 @@ namespace Vicuna.Storage.Data.Trees
             Index = Pages.Count - 1;
         }
 
-        public TreePathCursorScope CreateScope()
+        public TreePageCursorScope CreateScope()
         {
-            return new TreePathCursorScope(this);
+            return new TreePageCursorScope(this);
         }
     }
 
-    public class TreePathCursorScope : IDisposable
+    public class TreePageCursorScope : IDisposable
     {
         private int _index;
 
-        public TreePathCursor Cursor;
+        public TreePageCursor Cursor;
 
-        public TreePathCursorScope(TreePathCursor cursor)
+        public TreePageCursorScope(TreePageCursor cursor)
         {
             _index = cursor.Index;
             Cursor = cursor;
@@ -363,13 +434,13 @@ namespace Vicuna.Storage.Data.Trees
         }
     }
 
-    public class TreePathEntry
+    public class TreePageEntry
     {
         public int Index { get; set; }
 
         public TreePage Page { get; set; }
 
-        public TreePathEntry(int index, TreePage page)
+        public TreePageEntry(int index, TreePage page)
         {
             Index = index;
             Page = page;

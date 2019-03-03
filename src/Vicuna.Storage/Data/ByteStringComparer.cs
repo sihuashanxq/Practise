@@ -28,82 +28,75 @@ namespace Vicuna.Storage.Data
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static int CompareTo(byte* x, byte* y, int xLength, int yLength)
+        public static int CompareTo(byte* p1, byte* p2, int len1, int len2)
         {
-            var lxp = x;
-            var lyp = y;
-            var length = Math.Min(xLength, yLength);
+            var lp1 = p1;
+            var lp2 = p2;
+            var len = Math.Min(len1, len2);
 
-            for (var i = 0; i < length / 8; i++)
+            for (var i = 0; i < len / 8; i++)
             {
-                if (*(long*)lxp != *(long*)lyp)
+                if (*(long*)lp1 != *(long*)lp2)
                 {
-                    if (*(int*)lxp == *(int*)lyp)
+                    if (*(int*)lp1 == *(int*)lp2)
                     {
-                        lxp += 4;
-                        lyp += 4;
+                        lp1 += 4;
+                        lp2 += 4;
                     }
 
-                    for (var n = 0; n < 4; n++)
-                    {
-                        var flag = lxp[n] - lyp[n];
-                        if (flag != 0)
-                        {
-                            return flag;
-                        }
-                    }
+                    return CompareTo(lp1, lp2, sizeof(int));
                 }
 
-                lxp += 8;
-                lyp += 8;
+                lp1 += 8;
+                lp2 += 8;
             }
 
-            if ((length & 0x04) != 0)
+            if ((len & 0x04) != 0)
             {
-                if (*(int*)lxp != *(int*)lyp)
+                if (*(int*)lp1 != *(int*)lp2)
                 {
-                    for (var n = 0; n < 4; n++)
-                    {
-                        var flag = lxp[n] - lyp[n];
-                        if (flag != 0)
-                        {
-                            return flag;
-                        }
-                    }
+                    return CompareTo(lp1, lp2, sizeof(int));
                 }
 
-                lxp += 4;
-                lyp += 4;
+                lp1 += 4;
+                lp2 += 4;
             }
 
-            if ((length & 0x02) != 0)
+            if ((len & 0x02) != 0)
             {
-                if (*(short*)lxp != *(short*)lyp)
+                if (*(short*)lp1 != *(short*)lp2)
                 {
-                    for (var n = 0; n < 2; n++)
-                    {
-                        var flag = lxp[n] - lyp[n];
-                        if (flag != 0)
-                        {
-                            return flag;
-                        }
-                    }
+                    return CompareTo(lp1, lp2, sizeof(short));
                 }
 
-                lxp += 2;
-                lyp += 2;
+                lp1 += 2;
+                lp2 += 2;
             }
 
-            if ((length & 0x01) != 0)
+            if ((len & 0x01) != 0)
             {
-                var value = *lxp - *lyp;
-                if (value != 0)
+                var flag = *lp1 - *lp2;
+                if (flag != 0)
                 {
-                    return value;
+                    return flag;
                 }
             }
 
-            return xLength - yLength;
+            return len1 - len2;
+        }
+
+        public static int CompareTo(byte* p1, byte* p2, int len)
+        {
+            for (var n = 0; n < len; n++)
+            {
+                var flag = p1[n] - p2[n];
+                if (flag != 0)
+                {
+                    return flag;
+                }
+            }
+
+            return 0;
         }
     }
 }

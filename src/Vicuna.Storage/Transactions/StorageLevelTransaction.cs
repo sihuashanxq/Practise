@@ -7,37 +7,31 @@ namespace Vicuna.Storage.Transactions
     {
         private StorageSlice _lastUsedSlice;
 
-        private readonly StorageSliceActivingList _activedSlices;
-
-        private readonly StorageSliceManager _storageSliceManager;
-
-        private readonly StorageLevelTransactionBufferPool _buffer;
-
         internal StorageSlice LastUsedSlice
         {
             get
             {
                 if (_lastUsedSlice == null)
                 {
-                    _lastUsedSlice = _storageSliceManager.CreateSlice();
-                    _activedSlices.Insert(_lastUsedSlice);
+                    _lastUsedSlice = StorageSliceManager.CreateSlice();
+                    ActivedSlices.Insert(_lastUsedSlice);
                 }
 
                 return _lastUsedSlice;
             }
         }
 
-        internal StorageLevelTransactionBufferPool Buffer => _buffer;
+        internal StorageLevelTransactionBufferPool Buffer { get; }
 
-        internal StorageSliceActivingList ActivedSlices => _activedSlices;
+        internal StorageSliceActivingList ActivedSlices { get; }
 
-        internal StorageSliceManager StorageSliceManager => _storageSliceManager;
+        internal StorageSliceManager StorageSliceManager { get; }
 
         public StorageLevelTransaction(StorageLevelTransactionBufferPool buffer)
         {
-            _buffer = buffer;
-            _activedSlices = new StorageSliceActivingList(this);
-            _storageSliceManager = new StorageSliceManager(this);
+            Buffer = buffer;
+            ActivedSlices = new StorageSliceActivingList(this);
+            StorageSliceManager = new StorageSliceManager(this);
         }
 
         public bool Allocate(int size, out PageSlice pageSlice)
@@ -55,7 +49,7 @@ namespace Vicuna.Storage.Transactions
 
             _lastUsedSlice?.Dispose();
             _lastUsedSlice = StorageSliceManager.CreateSlice();
-            _activedSlices.Insert(_lastUsedSlice);
+            ActivedSlices.Insert(_lastUsedSlice);
 
             return _lastUsedSlice.Allocate(size, out pageSlice);
         }
@@ -75,7 +69,7 @@ namespace Vicuna.Storage.Transactions
 
             _lastUsedSlice?.Dispose();
             _lastUsedSlice = StorageSliceManager.CreateSlice();
-            _activedSlices.Insert(_lastUsedSlice);
+            ActivedSlices.Insert(_lastUsedSlice);
 
             return _lastUsedSlice.AllocatePage(out newPage);
         }
@@ -107,7 +101,7 @@ namespace Vicuna.Storage.Transactions
 
             _lastUsedSlice?.Dispose();
             _lastUsedSlice = StorageSliceManager.CreateSlice();
-            _activedSlices.Insert(_lastUsedSlice);
+            ActivedSlices.Insert(_lastUsedSlice);
 
             var b = _lastUsedSlice.AllocatePage(out newPage);
 

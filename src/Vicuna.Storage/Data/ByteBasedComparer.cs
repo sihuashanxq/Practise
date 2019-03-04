@@ -3,19 +3,8 @@ using System.Runtime.CompilerServices;
 
 namespace Vicuna.Storage.Data
 {
-    public unsafe class ByteStringComparer
+    public unsafe class ByteBasedComparer
     {
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public static int CompareTo(ByteString x, ByteString y)
-        {
-            if (ReferenceEquals(x, y))
-            {
-                return 0;
-            }
-
-            fixed (byte* xp = x.Chars, yp = y.Chars) return CompareTo(xp, yp, x.Chars.Length, y.Chars.Length);
-        }
-
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public static int CompareTo(byte[] x, byte[] y)
         {

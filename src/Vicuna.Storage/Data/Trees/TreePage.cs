@@ -45,6 +45,16 @@ namespace Vicuna.Storage.Data.Trees
             get => ref Unsafe.As<byte, TreePageHeader>(ref Ptr);
         }
 
+        public ref TreeNodeHeader this[int index]
+        {
+            get
+            {
+                var offset = GetNodeOffset(index);
+
+                return ref GetNodeHeader(offset);
+            }
+        }
+
         public bool Allocate(int index, ushort size, TreeNodeHeaderFlags flags, out ushort position)
         {
             size += TreeNodeHeader.SizeOf;                                                                  //+ header-size
@@ -202,6 +212,14 @@ namespace Vicuna.Storage.Data.Trees
         internal ref TreeNodeHeader GetNodeHeader(ushort position)
         {
             return ref Read<TreeNodeHeader>(position, TreeNodeHeader.SizeOf);
+        }
+
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        internal void UpdateNodeRefPageNumber(int index, long pageNumber)
+        {
+            var offset = GetNodeOffset(index);
+
+            Read<TreeNodeHeader>(offset, TreeNodeHeader.SizeOf).PageNumber = pageNumber; ;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -455,7 +473,7 @@ namespace Vicuna.Storage.Data.Trees
 
             fixed (byte* p1 = &x, p2 = &y)
             {
-                return ByteStringComparer.CompareTo(p1, p2, xSize, ySize);
+                return ByteBasedComparer.CompareTo(p1, p2, xSize, ySize);
             }
         }
 
@@ -520,7 +538,7 @@ namespace Vicuna.Storage.Data.Trees
 
             Header.Upper += (ushort)index;
 
-            Debug.Assert(IsSorted);
+            Debug.Assert(Sorted);
         }
 
         internal CopyEntriesResult CopyRightSideEntriesToNewPage(int index, TreePage newPage)
@@ -545,16 +563,16 @@ namespace Vicuna.Storage.Data.Trees
                 Header.UsedLength -= (ushort)(size);
                 Header.UsedLength -= nodeSize;
                 Header.ItemCount -= (ushort)((count - index));
-                Debug.Assert(IsSorted);
-                Debug.Assert(newPage.IsSorted);
+                Debug.Assert(Sorted);
+                Debug.Assert(newPage.Sorted);
                 return CopyEntriesResult.StartNodeMovedToNewPage;
             }
 
             Header.Low -= (ushort)((count - index - 1) * 2);
             Header.UsedLength -= (ushort)(size);
             Header.ItemCount -= (ushort)((count - index - 1));
-            Debug.Assert(IsSorted);
-            Debug.Assert(newPage.IsSorted);
+            Debug.Assert(Sorted);
+            Debug.Assert(newPage.Sorted);
             return CopyEntriesResult.Normal;
         }
 
@@ -583,12 +601,16 @@ namespace Vicuna.Storage.Data.Trees
             {
                 var keys = new List<byte[]>();
 
-                for (var i = 0; i < Header.ItemCount; i++)
+                for (var i = 0; i < Header.ItemCount - (IsBranch ? 1 : 0); i++)
                 {
                     var key = GetNodeKey(i);
                     if (key.Size > 0)
                     {
                         keys.Add(key.Keys.ToArray());
+                    }
+                    else
+                    {
+                        keys.Add(new byte[0]);
                     }
                 }
 
@@ -596,7 +618,25 @@ namespace Vicuna.Storage.Data.Trees
             }
         }
 
-        public bool IsSorted
+        internal List<TreeNodeHeader> Nodes
+        {
+            get
+            {
+                var nodes = new List<TreeNodeHeader>();
+
+                for (var i = 0; i < Header.ItemCount; i++)
+                {
+                    var offset = GetNodeOffset(i);
+                    var node = GetNodeHeader(offset);
+
+                    nodes.Add(node);
+                }
+
+                return nodes;
+            }
+        }
+
+        internal bool Sorted
         {
             get
             {
@@ -613,24 +653,6 @@ namespace Vicuna.Storage.Data.Trees
                 }
 
                 return true;
-            }
-        }
-
-        public List<TreeNodeHeader> Nodes
-        {
-            get
-            {
-                var nodes = new List<TreeNodeHeader>();
-
-                for (var i = 0; i < Header.ItemCount; i++)
-                {
-                    var offset = GetNodeOffset(i);
-                    var node = GetNodeHeader(offset);
-
-                    nodes.Add(node);
-                }
-
-                return nodes;
             }
         }
     }
@@ -724,6 +746,18 @@ namespace Vicuna.Storage.Data.Trees
         public void CopyTo(Span<byte> dest)
         {
             Keys.CopyTo(dest);
+        }
+
+        public override string ToString()
+        {
+            var str = "";
+
+            for (var i = 1; i < Size; i++)
+            {
+                str += (Char)(Keys[i]);
+            }
+
+            return str;
         }
     }
 

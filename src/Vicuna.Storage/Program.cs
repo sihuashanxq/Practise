@@ -36,10 +36,10 @@ namespace Vicuna.Storage
             };
 
             var mixLen = 10;
-
-            for (var i = 0; i < 200000; i++)
+            var y1 = 20000;
+            for (var i = 0; i < y1; i++)
             {
-                if (i == 140684)
+                if (i.ToString() == "142795")
                 {
 
                 }
@@ -52,11 +52,12 @@ namespace Vicuna.Storage
                 size.AsSpan().CopyTo(span.Slice(1));
 
                 tree.Insert(new Data.Trees.TreeNodeKey(span), new Data.Trees.TreeNodeValue(BitConverter.GetBytes(i).AsSpan()), Data.Trees.TreeNodeHeaderFlags.Data);
+
             };
 
             st.Start();
             var str = new List<string>();
-            for (var i = 0; i < 200000; i++)
+            for (var i = 0; i < y1; i++)
             {
                 try
                 {
@@ -70,11 +71,15 @@ namespace Vicuna.Storage
                     var key = new Data.Trees.TreeNodeKey(span);
                     var value = tree.Get(key);
                     BitConverter.ToInt32(value.Values);
-                    //Console.WriteLine(BitConverter.ToInt32(value.Values));
+                    Console.WriteLine(BitConverter.ToInt32(value.Values));
                 }
                 catch
                 {
                     str.Add(i.ToString());
+                }
+                if (i.ToString() == "142794")
+                {
+                    break;
                 }
                 //if (value.Size > 0)
                 //    Console.WriteLine(BitConverter.ToInt32(value.Values));
@@ -84,6 +89,7 @@ namespace Vicuna.Storage
             st.Stop();
             Console.WriteLine(st.ElapsedMilliseconds * 1.0 / 1000000);
             Console.WriteLine(st.ElapsedMilliseconds * 1.0);
+
         }
     }
 }

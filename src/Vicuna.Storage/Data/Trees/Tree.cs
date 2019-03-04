@@ -134,17 +134,18 @@ namespace Vicuna.Storage.Data.Trees
 
                 if (currrentPage.CopyRightSideEntriesToNewPage(index, newPage) == CopyEntriesResult.StartNodeMovedToNewPage)
                 {
-                    if (currrentPage.Header.ItemCount == 0)
+                    if (newEntry.Page.CompareTo(newEntry.Page.MinKey, key) >= 0)
                     {
+                        cursor.Current = newEntry;
                         cursor.Pop();
                         Split(cursor, key, current, newEntry);
-                        return CopyEntriesResult.Normal;
+                        return CopyEntriesResult.StartNodeMovedToNewPage;
                     }
                     else
                     {
                         cursor.Current = newEntry;
                         cursor.Pop();
-                        Split(cursor, key, current, newEntry);
+                        Split(cursor, newEntry.Page.MinKey, current, newEntry);
                         return CopyEntriesResult.StartNodeMovedToNewPage;
                     }
                 }
@@ -186,6 +187,8 @@ namespace Vicuna.Storage.Data.Trees
 
         public unsafe void AddParentNodePageRef(TreePageCursor cursor, TreeNodeKey key, TreePageEntry parentEntry, TreePageEntry currentEntry, TreePageEntry newEntry)
         {
+            var index = currentEntry.Index;
+
             if (parentEntry.Page.Header.ItemCount == 0)
             {
                 newEntry.Index = 1;
@@ -206,12 +209,10 @@ namespace Vicuna.Storage.Data.Trees
                 return;
             }
 
-            var index = currentEntry.Index;
-
             if (!parentEntry.Page.Allocate(index, key.Size, TreeNodeHeaderFlags.PageRef, out var position))
             {
                 var halfEntryCount = parentEntry.Page.Header.ItemCount / 2;
-                var halfEntryKey = parentEntry.Page.GetNodeKey(halfEntryCount);
+                var halfEntryKey = parentEntry.Page.GetNodeKey(halfEntryCount - 1);
                 if (CopyEntriesResult.StartNodeMovedToNewPage == Split(cursor, halfEntryKey, halfEntryCount, out var newPage))
                 {
                     if (halfEntryCount <= currentEntry.Index)
@@ -220,9 +221,6 @@ namespace Vicuna.Storage.Data.Trees
                         newEntry.Index = index + 1;
                         parentEntry = cursor.Current;
                     }
-
-                    var key0 = parentEntry.Page.MinKey;
-                    Console.WriteLine(parentEntry.Page.CompareTo(key, key0));
                 }
                 else
                 {
@@ -231,43 +229,16 @@ namespace Vicuna.Storage.Data.Trees
                         index = currentEntry.Index - halfEntryCount - 1;
                         newEntry.Index = index + 1;
                     }
-
-                    var key0 = parentEntry.Page.MinKey;
                 }
 
                 if (!parentEntry.Page.Allocate(index, key.Size, TreeNodeHeaderFlags.PageRef, out position))
                 {
-      
+
                 }
             }
 
-            //2  3  4
-
-            //1  2  3 4
-
-            //0  2  3  4
-
-            //0  1  2  3 4
-
-            //1.5  2  3  4
-
-            //1    5  2  3 4
-
-            //var offset = parentEntry.Page.GetNodeOffset(index + 1);
-            //ref var node = ref parentEntry.Page.GetNodeHeader(offset);
-
-            //node.PageNumber = newEntry.Page.Header.PageNumber;
-
-            //parentEntry.Page.InsertPageRefNode(index, position, key, currentEntry.Page.Header.PageNumber);
-            //if (newEntry.Index <= parentEntry.Page.Header.ItemCount - 1)
-            {
-                var offset = parentEntry.Page.GetNodeOffset(index + 1);
-                ref var node = ref parentEntry.Page.GetNodeHeader(offset);
-
-                node.PageNumber = newEntry.Page.Header.PageNumber;
-
-                parentEntry.Page.InsertPageRefNode(index, position, key, currentEntry.Page.Header.PageNumber);
-            }
+            parentEntry.Page[index + 1].PageNumber = newEntry.Page.Header.PageNumber;
+            parentEntry.Page.InsertPageRefNode(index, position, key, currentEntry.Page.Header.PageNumber);
         }
 
         private TreePageCursor SearchForKey(TreeNodeKey key)

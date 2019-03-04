@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
@@ -212,7 +213,10 @@ namespace Vicuna.Storage.Data.Trees
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         internal ushort GetNodeOffset(int index)
         {
-            return Read<ushort>(GetIndexOffset(index));
+            var offset = Read<ushort>(GetIndexOffset(index));
+            Debug.Assert(offset >= Header.Low && offset < Constants.PageSize);
+
+            return offset;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -236,34 +240,20 @@ namespace Vicuna.Storage.Data.Trees
                 return 1;
             }
 
-            try
+            //<=first
+            var nFlag = CompareTo(MinKey, key);
+            if (nFlag >= 0)
             {
-                //<=first
-                var nFlag = CompareTo(MinKey, key);
-                if (nFlag >= 0)
-                {
-                    index = IsBranch && nFlag == 0 ? 1 : 0;
-                    return IsBranch ? 0 : nFlag;
-                }
-            }
-            catch
-            {
-
+                index = IsBranch && nFlag == 0 ? 1 : 0;
+                return IsBranch ? 0 : nFlag;
             }
 
             //>=last 
-            try
+            var xFlag = CompareTo(MaxKey, key);
+            if (xFlag <= 0)
             {
-                var xFlag = CompareTo(MaxKey, key);
-                if (xFlag <= 0)
-                {
-                    index = IsBranch ? count : count - 1;
-                    return IsBranch ? 0 : xFlag;
-                }
-            }
-            catch
-            {
-
+                index = IsBranch ? count : count - 1;
+                return IsBranch ? 0 : xFlag;
             }
 
             return BinarySearch(key, 0, count - 1, out index);
@@ -331,7 +321,6 @@ namespace Vicuna.Storage.Data.Trees
                 return 0;
             }
 
-            //awalys >,branch matched
             index = last;
             return IsBranch ? 0 : lastFlag;
         }
@@ -397,7 +386,7 @@ namespace Vicuna.Storage.Data.Trees
             return 0;
         }
 
-        private int CompareTo(TreeNodeKey keyX, TreeNodeKey keyY)
+        public int CompareTo(TreeNodeKey keyX, TreeNodeKey keyY)
         {
             fixed (byte* p = Header.MetaKeys)
             {
@@ -531,10 +520,7 @@ namespace Vicuna.Storage.Data.Trees
 
             Header.Upper += (ushort)index;
 
-            if (Header.Upper > Constants.PageSize)
-            {
-
-            }
+            Debug.Assert(IsSorted);
         }
 
         internal CopyEntriesResult CopyRightSideEntriesToNewPage(int index, TreePage newPage)
@@ -558,33 +544,17 @@ namespace Vicuna.Storage.Data.Trees
                 Header.Low -= (ushort)((count - index) * 2);
                 Header.UsedLength -= (ushort)(size);
                 Header.UsedLength -= nodeSize;
-                if (Header.Upper > Constants.PageSize)
-                {
-
-                }
-
-                if (newPage.Header.Upper > Constants.PageSize)
-                {
-
-                }
-
                 Header.ItemCount -= (ushort)((count - index));
+                Debug.Assert(IsSorted);
+                Debug.Assert(newPage.IsSorted);
                 return CopyEntriesResult.StartNodeMovedToNewPage;
             }
 
             Header.Low -= (ushort)((count - index - 1) * 2);
             Header.UsedLength -= (ushort)(size);
             Header.ItemCount -= (ushort)((count - index - 1));
-            if (Header.Upper > Constants.PageSize)
-            {
-
-            }
-
-            if (newPage.Header.Upper > Constants.PageSize)
-            {
-
-            }
-
+            Debug.Assert(IsSorted);
+            Debug.Assert(newPage.IsSorted);
             return CopyEntriesResult.Normal;
         }
 
@@ -599,7 +569,7 @@ namespace Vicuna.Storage.Data.Trees
                 throw new Exception("tree page split failed!");
             }
 
-            var oldNode = Slice(offset, size - sizeof(ushort));
+            var oldNode = Slice(offset, size);
             var newNode = newPage.Slice(newNodeOffset, size);
 
             oldNode.CopyTo(newNode);
@@ -623,6 +593,44 @@ namespace Vicuna.Storage.Data.Trees
                 }
 
                 return keys;
+            }
+        }
+
+        public bool IsSorted
+        {
+            get
+            {
+                var keys = Keys;
+
+                for (var i = 0; i < keys.Count - 1; i++)
+                {
+                    var key1 = new TreeNodeKey(keys[i]);
+                    var key2 = new TreeNodeKey(keys[i + 1]);
+                    if (CompareTo(key1, key2) > 0)
+                    {
+                        return false;
+                    }
+                }
+
+                return true;
+            }
+        }
+
+        public List<TreeNodeHeader> Nodes
+        {
+            get
+            {
+                var nodes = new List<TreeNodeHeader>();
+
+                for (var i = 0; i < Header.ItemCount; i++)
+                {
+                    var offset = GetNodeOffset(i);
+                    var node = GetNodeHeader(offset);
+
+                    nodes.Add(node);
+                }
+
+                return nodes;
             }
         }
     }

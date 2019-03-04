@@ -56,26 +56,34 @@ namespace Vicuna.Storage
 
             st.Start();
             var str = new List<string>();
-
             for (var i = 0; i < 200000; i++)
             {
-                var keyString = i.ToString();
-                var size = Encoding.UTF8.GetBytes(keyString);
-                Span<byte> span = new byte[size.Length + 1];
+                try
+                {
+                    var keyString = i.ToString();
+                    var size = Encoding.UTF8.GetBytes(keyString);
+                    Span<byte> span = new byte[size.Length + 1];
 
-                span[0] = (byte)size.Length;
+                    span[0] = (byte)size.Length;
 
-                size.AsSpan().CopyTo(span.Slice(1));
-
-                var value = tree.Get(new Data.Trees.TreeNodeKey(span));
-                Console.WriteLine(BitConverter.ToInt32(value.Values));
+                    size.AsSpan().CopyTo(span.Slice(1));
+                    var key = new Data.Trees.TreeNodeKey(span);
+                    var value = tree.Get(key);
+                    BitConverter.ToInt32(value.Values);
+                    //Console.WriteLine(BitConverter.ToInt32(value.Values));
+                }
+                catch
+                {
+                    str.Add(i.ToString());
+                }
                 //if (value.Size > 0)
                 //    Console.WriteLine(BitConverter.ToInt32(value.Values));
             }
-
+            Console.WriteLine(str.Count + "_");
             tx.Dispose();
             st.Stop();
             Console.WriteLine(st.ElapsedMilliseconds * 1.0 / 1000000);
+            Console.WriteLine(st.ElapsedMilliseconds * 1.0);
         }
     }
 }

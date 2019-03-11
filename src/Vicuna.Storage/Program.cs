@@ -7,6 +7,7 @@ using Vicuna.Storage.Transactions;
 using System.Text;
 using System.Runtime.CompilerServices;
 using System.Reflection.Emit;
+using Vicuna.Storage.Data.Trees;
 
 namespace Vicuna.Storage
 {
@@ -29,60 +30,55 @@ namespace Vicuna.Storage
             var pp = new StorageFilePageManager(1024 * 100, new StorageFile(new FileStream(@"4.txt", FileMode.OpenOrCreate)));
             var st = new Stopwatch();
             var tx = new StorageLevelTransaction(new Transactions.StorageLevelTransactionBufferPool(pp));
-            var bytes = Encoding.UTF8.GetBytes("what are your name!");
             var tree = new Data.Trees.Tree()
             {
                 _tx = tx
             };
 
             var mixLen = 10;
-            var y1 = 20000;
-            for (var i = 0; i < y1; i++)
+            var count = 200000;
+
+            for (var i = 0; i < count; i++)
             {
-                if (i.ToString() == "142795")
-                {
+                Span<byte> bytes = Encoding.UTF8.GetBytes(i.ToString());
+                Span<byte> key = new byte[bytes.Length + 1];
 
-                }
-                var keyString = i.ToString();
-                var size = Encoding.UTF8.GetBytes(keyString);
-                Span<byte> span = new byte[size.Length + 1];
+                //value
+                Span<byte> value = Encoding.UTF8.GetBytes(("say :" + i).ToString ());
 
-                span[0] = (byte)size.Length;
+                //set key size
+                key[0] = (byte)bytes.Length;
 
-                size.AsSpan().CopyTo(span.Slice(1));
+                bytes.CopyTo(key.Slice(1));
 
-                tree.Insert(new Data.Trees.TreeNodeKey(span), new Data.Trees.TreeNodeValue(BitConverter.GetBytes(i).AsSpan()), Data.Trees.TreeNodeHeaderFlags.Data);
-
+                tree.Insert(new TreeNodeKey(key), new TreeNodeValue(value), Data.Trees.TreeNodeHeaderFlags.Data);
+         
             };
 
             st.Start();
             var str = new List<string>();
-            for (var i = 0; i < y1; i++)
+            for (var i = 0; i < count; i++)
             {
                 try
                 {
-                    var keyString = i.ToString();
-                    var size = Encoding.UTF8.GetBytes(keyString);
-                    Span<byte> span = new byte[size.Length + 1];
+                    Span<byte> bytes = Encoding.UTF8.GetBytes(i.ToString());
+                    Span<byte> key = new byte[bytes.Length + 1];
 
-                    span[0] = (byte)size.Length;
+                    //set key size
+                    key[0] = (byte)bytes.Length;
 
-                    size.AsSpan().CopyTo(span.Slice(1));
-                    var key = new Data.Trees.TreeNodeKey(span);
-                    var value = tree.Get(key);
-                    BitConverter.ToInt32(value.Values);
-                    Console.WriteLine(BitConverter.ToInt32(value.Values));
+                    bytes.CopyTo(key.Slice(1));
+
+                    var value = tree.Get(new TreeNodeKey(key));
+
+                    //Console.WriteLine(Encoding.UTF8.GetString(value.Values));
+
+                    str.Add(BitConverter.ToInt32(value.Values).ToString());
                 }
-                catch
+                catch (Exception e)
                 {
-                    str.Add(i.ToString());
+                    Console.WriteLine("err" + i);
                 }
-                if (i.ToString() == "142794")
-                {
-                    break;
-                }
-                //if (value.Size > 0)
-                //    Console.WriteLine(BitConverter.ToInt32(value.Values));
             }
             Console.WriteLine(str.Count + "_");
             tx.Dispose();

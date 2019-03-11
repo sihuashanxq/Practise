@@ -2,7 +2,6 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 
 namespace Vicuna.Storage.Data.Trees
 {
@@ -10,14 +9,14 @@ namespace Vicuna.Storage.Data.Trees
     {
         public const ushort MaxPerPageNodeDataSize = 8000;
 
-        public TreePage() : base()
+        public TreePage(byte[] data) : base(data)
         {
 
         }
 
-        public TreePage(byte[] data) : base(data)
+        public TreePage(long pageNumber) : this(new byte[Constants.PageSize])
         {
-
+            Header.PageNumber = pageNumber;
         }
 
         public bool IsLeaf
@@ -40,19 +39,17 @@ namespace Vicuna.Storage.Data.Trees
             get => GetNodeKey(Header.ItemCount - (IsLeaf ? 1 : 2));
         }
 
-        public ref TreePageHeader Header
-        {
-            get => ref Unsafe.As<byte, TreePageHeader>(ref Ptr);
-        }
-
         public ref TreeNodeHeader this[int index]
         {
             get
             {
-                var offset = GetNodeOffset(index);
-
-                return ref GetNodeHeader(offset);
+                return ref GetNodeHeader(GetNodeOffset(index));
             }
+        }
+
+        public ref TreePageHeader Header
+        {
+            get => ref Unsafe.As<byte, TreePageHeader>(ref Ptr);
         }
 
         public bool Allocate(int index, ushort size, TreeNodeHeaderFlags flags, out ushort position)
@@ -121,7 +118,7 @@ namespace Vicuna.Storage.Data.Trees
             node.NodeFlags = TreeNodeHeaderFlags.Data;
 
             tx.TransactionNumber = txNumber;
-            tx.TransactionLogNumber = -1;
+            tx.TransactionRollbackNumber = -1;
 
             nodeKey.CopyTo(key);
             nodeValue.CopyTo(value);
@@ -181,7 +178,7 @@ namespace Vicuna.Storage.Data.Trees
                 ref var tx = ref GetNodeTransactionHeader((ushort)(nodePosition + node.KeySize + TreeNodeTransactionHeader.SizeOf));
 
                 tx.TransactionNumber = txNumber;
-                tx.TransactionLogNumber = txLogNumber;
+                tx.TransactionRollbackNumber = txLogNumber;
             }
 
             node.IsDeleted = true;
@@ -205,7 +202,7 @@ namespace Vicuna.Storage.Data.Trees
 
             Header.Low -= sizeof(ushort);
             Header.ItemCount--;
-            Header.UsedLength -= node.GetNodeSize();
+            Header.UsedLength -= node.GetSize();
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -372,7 +369,7 @@ namespace Vicuna.Storage.Data.Trees
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         public TreeNodeValue GetNodeValue(ushort nodeOffset, ref TreeNodeHeader node)
         {
-            var offset = node.GetNodeDataOffset(nodeOffset);
+            var offset = node.GetValueOffset(nodeOffset);
             var value = Slice(offset, (int)node.DataSize);
 
             return new TreeNodeValue(value);
@@ -520,7 +517,7 @@ namespace Vicuna.Storage.Data.Trees
                 var nIndex = GetIndexOffset(i);
                 var nOffset = GetNodeOffset(i);
                 ref var node = ref GetNodeHeader(nOffset);
-                var size = node.GetNodeSize() - sizeof(ushort);
+                var size = node.GetSize() - sizeof(ushort);
 
                 index -= size;
 
@@ -541,58 +538,88 @@ namespace Vicuna.Storage.Data.Trees
             Debug.Assert(Sorted);
         }
 
-        internal CopyEntriesResult CopyRightSideEntriesToNewPage(int index, TreePage newPage)
+        internal int CopyNodeEntriesToNewPage(int index, TreePage newPage)
         {
-            var size = 0;
-            var newIndex = 0;
+            var min = 1;
             var count = Header.ItemCount;
+            var start = index < min ? min : index;
 
-            for (var i = index + 1; i < count; i++)
+            for (var i = count - 1; i >= index; i--)
             {
-                CopyNodeEntryToNewPage(i, newIndex, newPage, out var nodeSize);
+                if (CopyNodeEntryToNewPage(i, 0, newPage, CopyNodeEntryType.SourcePageSpaceFirst, out var size))
+                {
+                    Header.Low -= sizeof(ushort);
+                    Header.UsedLength -= size;
+                    Header.ItemCount--;
+                    continue;
+                }
 
-                newIndex++;
-                size += nodeSize;
+                start = i + 1;
+                break;
             }
 
-            //let current page has more free space 
-            if (newPage.Header.UsedLength < Header.UsedLength)
+            if (start == index)
             {
-                CopyNodeEntryToNewPage(index, 0, newPage, out var nodeSize);
-                Header.Low -= (ushort)((count - index) * 2);
-                Header.UsedLength -= (ushort)(size);
-                Header.UsedLength -= nodeSize;
-                Header.ItemCount -= (ushort)((count - index));
-                Debug.Assert(Sorted);
-                Debug.Assert(newPage.Sorted);
-                return CopyEntriesResult.StartNodeMovedToNewPage;
+                while (start - 1 > min && CopyNodeEntryToNewPage(start - 1, 0, newPage, CopyNodeEntryType.TargetMoreSpaceFirst, out var size))
+                {
+                    Header.Low -= sizeof(ushort);
+                    Header.UsedLength -= size;
+                    Header.ItemCount--;
+                    start--;
+                }
             }
 
-            Header.Low -= (ushort)((count - index - 1) * 2);
-            Header.UsedLength -= (ushort)(size);
-            Header.ItemCount -= (ushort)((count - index - 1));
-            Debug.Assert(Sorted);
-            Debug.Assert(newPage.Sorted);
-            return CopyEntriesResult.Normal;
+            return start;
         }
 
-        internal void CopyNodeEntryToNewPage(int sourceIndex, int newIndex, TreePage newPage, out ushort nodeSize)
+        public enum CopyNodeEntryType
         {
+            SourcePageSpaceFirst,
+
+            TargetMoreSpaceFirst,
+        }
+
+        internal bool CopyNodeEntryToNewPage(int sourceIndex, int destIndex, TreePage newPage, CopyNodeEntryType copyType, out ushort nodeSize)
+        {
+            if (sourceIndex > Header.ItemCount - 1)
+            {
+                nodeSize = 0;
+                return false;
+            }
+
             var offset = GetNodeOffset(sourceIndex);
             var node = GetNodeHeader(offset);
-            var size = node.GetNodeSize() - sizeof(ushort);
+            var size = node.GetSize();
 
-            if (!newPage.AllocateInternal(newIndex, (ushort)size, node.NodeFlags, out var newNodeOffset))
+            switch (copyType)
+            {
+                case CopyNodeEntryType.SourcePageSpaceFirst:
+                    if (newPage.Header.UsedLength + size >= Header.UsedLength - size)
+                    {
+                        nodeSize = 0;
+                        return false;
+                    }
+                    break;
+                case CopyNodeEntryType.TargetMoreSpaceFirst:
+                    if (newPage.Header.UsedLength + size <= Header.UsedLength - size)
+                    {
+                        nodeSize = 0;
+                        return false;
+                    }
+                    break;
+            }
+
+            if (!newPage.AllocateInternal(destIndex, size, node.NodeFlags, out var newNodeOffset))
             {
                 throw new Exception("tree page split failed!");
             }
 
-            var oldNode = Slice(offset, size);
-            var newNode = newPage.Slice(newNodeOffset, size);
+            var oldNode = Slice(offset, size - sizeof(ushort));
+            var newNode = newPage.Slice(newNodeOffset, size - sizeof(ushort));
 
             oldNode.CopyTo(newNode);
-
-            nodeSize = (ushort)size;
+            nodeSize = size;
+            return true;
         }
 
         public List<byte[]> Keys
@@ -657,78 +684,6 @@ namespace Vicuna.Storage.Data.Trees
         }
     }
 
-    [StructLayout(LayoutKind.Explicit, Pack = 1, Size = SizeOf)]
-    public struct TreeNodeHeader
-    {
-        public const ushort SizeOf = 12;
-
-        public const ushort NodeSlotSize = sizeof(ushort);
-
-        [FieldOffset(0)]
-        public bool IsDeleted;
-
-        [FieldOffset(1)]
-        public ushort KeySize;
-
-        [FieldOffset(3)]
-        public uint DataSize;
-
-        [FieldOffset(3)]
-        public long PageNumber;
-
-        [FieldOffset(11)]
-        public TreeNodeHeaderFlags NodeFlags;
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public ushort GetNodeSize()
-        {
-            switch (NodeFlags)
-            {
-                case TreeNodeHeaderFlags.Data:
-                    return (ushort)(SizeOf + NodeSlotSize + KeySize + DataSize + TreeNodeTransactionHeader.SizeOf);
-                case TreeNodeHeaderFlags.DataRef:
-                    return (ushort)(SizeOf + NodeSlotSize + KeySize + DataSize);
-                default:
-                    return (ushort)(SizeOf + NodeSlotSize + KeySize);
-            }
-        }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public ushort GetNodeDataOffset(ushort nodePosition)
-        {
-            switch (NodeFlags)
-            {
-                case TreeNodeHeaderFlags.Data:
-                    return (ushort)(SizeOf + nodePosition + KeySize + TreeNodeTransactionHeader.SizeOf);
-                case TreeNodeHeaderFlags.DataRef:
-                    return (ushort)(SizeOf + nodePosition + KeySize);
-                default:
-                    return (ushort)(SizeOf + nodePosition + KeySize);
-            }
-        }
-    }
-
-    [StructLayout(LayoutKind.Explicit, Pack = 1, Size = SizeOf)]
-    public struct TreeNodeTransactionHeader
-    {
-        public const ushort SizeOf = 16;
-
-        [FieldOffset(0)]
-        public long TransactionNumber;
-
-        [FieldOffset(8)]
-        public long TransactionLogNumber;
-    }
-
-    public enum TreeNodeHeaderFlags : byte
-    {
-        Data = 1,
-
-        DataRef = 2,
-
-        PageRef = 3
-    }
-
     public ref struct TreeNodeKey
     {
         public ushort Size;
@@ -754,7 +709,7 @@ namespace Vicuna.Storage.Data.Trees
 
             for (var i = 1; i < Size; i++)
             {
-                str += (Char)(Keys[i]);
+                str += (char)Keys[i];
             }
 
             return str;
@@ -777,12 +732,5 @@ namespace Vicuna.Storage.Data.Trees
         {
             Values.CopyTo(dest);
         }
-    }
-
-    public enum CopyEntriesResult
-    {
-        Normal = 0,
-
-        StartNodeMovedToNewPage = 1,
     }
 }

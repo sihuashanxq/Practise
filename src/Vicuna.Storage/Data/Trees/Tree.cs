@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Text;
+using Vicuna.Storage.Pages;
 using Vicuna.Storage.Transactions;
 
 namespace Vicuna.Storage.Data.Trees
@@ -38,24 +39,15 @@ namespace Vicuna.Storage.Data.Trees
             var cursor = SearchForKey(key);
             if (cursor.Current == null)
             {
-                if (!_tx.AllocateTreePage(out var newPage))
-                {
-
-                    throw null;
-                }
-                fixed (byte* p = newPage.Header.MetaKeys)
-                {
-                    *p = (byte)DataValueType.String;
-                }
-
-                cursor.Current = new TreePageEntry(0, newPage);
-                cursor.Current.Page.Header.Flags = Pages.PageFlags.Data;
-                cursor.Current.Page.Header.NodeFlags = TreeNodeFlags.Leaf;
-                _root = cursor.Current.Page;
+                cursor.Current = new TreePageEntry(0, AllocatePage(TreeNodeFlags.Leaf, Pages.PageFlags.Data));
             }
 
-            var currentPage = cursor.Current.Page;
-            var flag = currentPage.Search(key, out var index);
+            var flag = cursor.Current.Page.Search(key, out var index);
+            if (flag < 0)
+            {
+                index++;
+            }
+
             if (flag == 0)
             {
                 if (!_isMulpti)
@@ -64,128 +56,76 @@ namespace Vicuna.Storage.Data.Trees
                 }
             }
 
-            if (flag < 0)
-            {
-                index++;
-            }
-
             var size = key.Size;
-            if (key.Size + value.Size <= MaxPageDataSize)
+            if (size + value.Size <= MaxPageDataSize)
             {
                 size += (ushort)value.Size;
             }
 
-            var currentEntry = cursor.Modify(_tx);
-            if (currentEntry.Page.Allocate(index, size, flags, out var position))
+            var curPageEntry = cursor.Modify(_tx);
+            if (!curPageEntry.Page.Allocate(index, size, flags, out var position))
             {
-                currentEntry.Page.InsertDataNode(index, position, key, value, 0);
-                if (cursor.IsRootChanged)
+                var balanceIndex = Balance(cursor, key, index);
+                if (balanceIndex <= index)
                 {
-                    _root = cursor.Pages[0].Page;
+                    index = index - balanceIndex;
                 }
-                return;
-            }
 
-            if (CopyEntriesResult.StartNodeMovedToNewPage == Split(cursor, key, index, out var _))
-            {
-                index = 0;
-                currentEntry = cursor.Current;
-            }
-
-            if (currentEntry.Page.Allocate(index, size, flags, out position))
-            {
-                currentEntry.Page.InsertDataNode(index, position, key, value, 0);
-                if (cursor.IsRootChanged)
+                if (!cursor.Current.Page.Allocate(index, size, flags, out position))
                 {
-                    _root = cursor.Pages[0].Page;
+                    throw new InvalidOperationException("allocate node space faild!");
                 }
-                return;
+
+                curPageEntry = cursor.Current;
             }
 
-            throw new Exception();
+            _root = cursor.Root.Page;
+
+            curPageEntry.Page.InsertDataNode(index, position, key, value, 0);
         }
 
-        public unsafe CopyEntriesResult Split(TreePageCursor cursor, TreeNodeKey key, int index, out TreePage newPage)
+        public unsafe int Balance(TreePageCursor cursor, TreeNodeKey key, int index)
         {
-            if (!_tx.AllocateTreePage(out newPage))
-            {
-                throw new Exception("allocate new page faild! ");
-            }
-
-            fixed (byte* p = newPage.Header.MetaKeys)
-            {
-                *p = (byte)DataValueType.String;
-            }
-
-            newPage.Header.Flags = cursor.Current.Page.Header.Flags;
-            newPage.Header.NodeFlags = cursor.Current.Page.Header.NodeFlags;
             using (cursor.CreateScope())
             {
-                var current = cursor.Current;
-                var newEntry = new TreePageEntry(current.Index + 1, newPage);
-                var currrentPage = current.Page;
-                if (index == currrentPage.Header.ItemCount)
+                var curPageEntry = cursor.Current;
+                var newPage = AllocatePage(curPageEntry.Page.Header.NodeFlags, curPageEntry.Page.Header.Flags);
+                var newPageEntry = new TreePageEntry(curPageEntry.Index + 1, newPage);
+                var offset = curPageEntry.Page.CopyNodeEntriesToNewPage(index, newPage);
+                if (offset <= index)
                 {
-                    cursor.Current = newEntry;
-                    cursor.Pop();
-                    Split(cursor, key, current, newEntry);
-                    return CopyEntriesResult.StartNodeMovedToNewPage;
+                    index = index - offset;
+                    key = index > 0 ? newPage.MinKey : key;
+                    cursor.Current = newPageEntry;
                 }
-
-                if (currrentPage.CopyRightSideEntriesToNewPage(index, newPage) == CopyEntriesResult.StartNodeMovedToNewPage)
+                else
                 {
-                    if (newEntry.Page.CompareTo(newEntry.Page.MinKey, key) >= 0)
-                    {
-                        cursor.Current = newEntry;
-                        cursor.Pop();
-                        Split(cursor, key, current, newEntry);
-                        return CopyEntriesResult.StartNodeMovedToNewPage;
-                    }
-                    else
-                    {
-                        cursor.Current = newEntry;
-                        cursor.Pop();
-                        Split(cursor, newEntry.Page.MinKey, current, newEntry);
-                        return CopyEntriesResult.StartNodeMovedToNewPage;
-                    }
+                    key = newPage.MinKey;
                 }
 
                 cursor.Pop();
-                Split(cursor, currrentPage.MaxKey, current, newEntry);
-                return CopyEntriesResult.Normal;
+                Balance(cursor, key, curPageEntry, newPageEntry);
+                return offset;
             }
         }
 
-        public unsafe void Split(TreePageCursor cursor, TreeNodeKey key, TreePageEntry currentEntry, TreePageEntry newEntry)
+        public unsafe void Balance(TreePageCursor cursor, TreeNodeKey key, TreePageEntry curPageEntry, TreePageEntry newPageEntry)
         {
             var parent = cursor.Current;
             if (parent == null)
             {
-                if (!_tx.AllocateTreePage(out var parentPage))
-                {
-                    throw new Exception("allocate new page faild! ");
-                }
-
-                fixed (byte* p = parentPage.Header.MetaKeys)
-                {
-                    *p = (byte)DataValueType.String;
-                }
-
-                parentPage.Header.Flags = Pages.PageFlags.None;
-                parentPage.Header.NodeFlags = TreeNodeFlags.Branch;
-
                 //root
-                parent = cursor.Current = new TreePageEntry(0, parentPage);
+                parent = cursor.Current = new TreePageEntry(0, AllocatePage(TreeNodeFlags.Branch, Pages.PageFlags.Data));
             }
             else
             {
                 parent = cursor.Modify(_tx);
             }
 
-            AddParentNodePageRef(cursor, key, parent, currentEntry, newEntry);
+            Balance(cursor, key, parent, curPageEntry, newPageEntry);
         }
 
-        public unsafe void AddParentNodePageRef(TreePageCursor cursor, TreeNodeKey key, TreePageEntry parentEntry, TreePageEntry currentEntry, TreePageEntry newEntry)
+        public unsafe void Balance(TreePageCursor cursor, TreeNodeKey key, TreePageEntry parentEntry, TreePageEntry currentEntry, TreePageEntry newEntry)
         {
             var index = currentEntry.Index;
 
@@ -194,15 +134,8 @@ namespace Vicuna.Storage.Data.Trees
                 newEntry.Index = 1;
                 currentEntry.Index = 0;
 
-                if (!parentEntry.Page.Allocate(currentEntry.Index, key.Size, TreeNodeHeaderFlags.PageRef, out var currentEntryPosition))
-                {
-                    throw new Exception("");
-                }
-
-                if (!parentEntry.Page.Allocate(newEntry.Index, 0, TreeNodeHeaderFlags.PageRef, out var newEntryPosition))
-                {
-                    throw new Exception("");
-                }
+                parentEntry.Page.Allocate(0, key.Size, TreeNodeHeaderFlags.PageRef, out var currentEntryPosition);
+                parentEntry.Page.Allocate(1, 0, TreeNodeHeaderFlags.PageRef, out var newEntryPosition);
 
                 parentEntry.Page.InsertPageRefNode(0, currentEntryPosition, key, currentEntry.Page.Header.PageNumber);
                 parentEntry.Page.InsertPageRefNode(1, newEntryPosition, new TreeNodeKey(), newEntry.Page.Header.PageNumber);
@@ -211,24 +144,20 @@ namespace Vicuna.Storage.Data.Trees
 
             if (!parentEntry.Page.Allocate(index, key.Size, TreeNodeHeaderFlags.PageRef, out var position))
             {
-                var halfEntryCount = parentEntry.Page.Header.ItemCount / 2;
-                var halfEntryKey = parentEntry.Page.GetNodeKey(halfEntryCount - 1);
-                if (CopyEntriesResult.StartNodeMovedToNewPage == Split(cursor, halfEntryKey, halfEntryCount, out var newPage))
+                var halfEntryIndex = parentEntry.Page.Header.ItemCount / 2;
+                var halfEntryKey = parentEntry.Page.GetNodeKey(halfEntryIndex - 1);
+                var balanceIndex = Balance(cursor, halfEntryKey, halfEntryIndex);
+                if (balanceIndex <= halfEntryIndex && balanceIndex <= currentEntry.Index)
                 {
-                    if (halfEntryCount <= currentEntry.Index)
-                    {
-                        index = currentEntry.Index - halfEntryCount;
-                        newEntry.Index = index + 1;
-                        parentEntry = cursor.Current;
-                    }
+                    index = currentEntry.Index - balanceIndex;
+                    newEntry.Index = index + 1;
+                    parentEntry = cursor.Current;
                 }
-                else
+                else if (balanceIndex > halfEntryIndex && balanceIndex < currentEntry.Index)
                 {
-                    if (halfEntryCount < currentEntry.Index)
-                    {
-                        index = currentEntry.Index - halfEntryCount - 1;
-                        newEntry.Index = index + 1;
-                    }
+                    index = currentEntry.Index - balanceIndex - 1;
+                    newEntry.Index = index + 1;
+                    parentEntry = cursor.Current;
                 }
 
                 if (!parentEntry.Page.Allocate(index, key.Size, TreeNodeHeaderFlags.PageRef, out position))
@@ -263,11 +192,6 @@ namespace Vicuna.Storage.Data.Trees
                 }
             }
 
-            if (page.Header.NodeFlags != TreeNodeFlags.Leaf)
-            {
-                throw new InvalidOperationException($"tree page:{page.Header.PageNumber} is not a leaf b-tree page!");
-            }
-
             return cursor;
         }
 
@@ -290,133 +214,21 @@ namespace Vicuna.Storage.Data.Trees
             }
 
             return p2;
-
-        }
-    }
-
-    public class TreePageCursor
-    {
-        public int Index;
-
-        public List<TreePageEntry> Pages;
-
-        public bool IsRootChanged => Pages[0] != null;
-
-        public TreePageEntry Parent
-        {
-            get => Pages.Count > 1 ? Pages[Pages.Count - 2] : null;
         }
 
-        public TreePageEntry Current
+        public unsafe TreePage AllocatePage(TreeNodeFlags nodeFlags, PageFlags pageFlags)
         {
-            get
+            _tx.AllocateTreePage(out var newPage);
+
+            newPage.Header.Flags = pageFlags;
+            newPage.Header.NodeFlags = nodeFlags;
+
+            fixed (byte* p = newPage.Header.MetaKeys)
             {
-                if (Index > Pages.Count - 1 || Index < 0)
-                {
-                    throw new IndexOutOfRangeException();
-                }
-
-                return Pages[Index];
-            }
-            internal set
-            {
-                if (Index > Pages.Count - 1 || Index < 0)
-                {
-                    throw new IndexOutOfRangeException();
-                }
-
-                Pages[Index] = value;
-            }
-        }
-
-        internal TreePageCursor()
-        {
-            Index = -1;
-            Pages = new List<TreePageEntry>();
-        }
-
-        internal TreePageCursor(IEnumerable<TreePageEntry> pages) : this()
-        {
-            foreach (var item in pages)
-            {
-                Pages.Add(item);
-            }
-        }
-
-        public TreePageEntry Pop()
-        {
-            if (Index > Pages.Count)
-            {
-                return null;
+                *p = (byte)DataValueType.String;
             }
 
-            var page = Pages[Index];
-
-            Index--;
-
-            return page;
-        }
-
-        public void Push(TreePageEntry newPage)
-        {
-            if (Index >= Pages.Count - 1)
-            {
-                Index++;
-                Pages.Add(newPage);
-            }
-            else
-            {
-                Index++;
-                Pages.Insert(Index, newPage);
-            }
-        }
-
-        public TreePageEntry Modify(StorageLevelTransaction tx)
-        {
-            var page = tx.GetPageToModify2(Current.Page.Header.PageNumber);
-
-            return Current = new TreePageEntry(Current.Index, new TreePage(page));
-        }
-
-        public void Reset()
-        {
-            Index = Pages.Count - 1;
-        }
-
-        public TreePageCursorScope CreateScope()
-        {
-            return new TreePageCursorScope(this);
-        }
-    }
-
-    public class TreePageCursorScope : IDisposable
-    {
-        private int _index;
-
-        public TreePageCursor Cursor;
-
-        public TreePageCursorScope(TreePageCursor cursor)
-        {
-            _index = cursor.Index;
-            Cursor = cursor;
-        }
-
-        public void Dispose()
-        {
-            Cursor.Index = _index;
-        }
-    }
-
-    public class TreePageEntry
-    {
-        public int Index { get; set; }
-
-        public TreePage Page { get; set; }
-
-        public TreePageEntry(int index, TreePage page)
-        {
-            Index = index;
-            Page = page;
+            return newPage;
         }
     }
 }

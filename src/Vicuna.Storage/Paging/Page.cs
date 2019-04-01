@@ -1,30 +1,28 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
 
-namespace Vicuna.Storage.Data
+namespace Vicuna.Storage.Paging
 {
-    public abstract class AbstractPage
+    public class Page
     {
-        private byte[] _data;
+        public byte[] Data { get; }
 
-        /// <summary>
-        /// page data size
-        /// </summary>
-        public int Size => _data.Length;
+        public int Size => Data.Length;
 
-        /// <summary>
-        /// page data ref
-        /// </summary>
-        public ref byte Ptr => ref _data[0];
-
-        public AbstractPage()
+        public ref PageHeader FileHeader
         {
-            _data = new byte[Constants.PageSize];
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            get => ref Unsafe.As<byte, PageHeader>(ref Data[0]);
         }
 
-        public AbstractPage(byte[] data)
+        public Page()
         {
-            _data = data ?? throw new ArgumentNullException(nameof(data));
+            Data = new byte[Constants.PageSize];
+        }
+
+        public Page(byte[] data)
+        {
+            Data = data ?? throw new ArgumentNullException(nameof(data));
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -35,7 +33,7 @@ namespace Vicuna.Storage.Data
                 throw new ArgumentOutOfRangeException(nameof(offset));
             }
 
-            return _data.AsSpan().Slice(offset, length);
+            return Data.AsSpan().Slice(offset, length);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -52,7 +50,7 @@ namespace Vicuna.Storage.Data
                 throw new ArgumentOutOfRangeException(nameof(offset));
             }
 
-            return ref Unsafe.As<byte, T>(ref _data[offset]);
+            return ref Unsafe.As<byte, T>(ref Data[offset]);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -69,7 +67,7 @@ namespace Vicuna.Storage.Data
                 throw new ArgumentOutOfRangeException(nameof(offset));
             }
 
-            Unsafe.As<byte, T>(ref _data[offset]) = value;
+            Unsafe.As<byte, T>(ref Data[offset]) = value;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -80,7 +78,7 @@ namespace Vicuna.Storage.Data
                 throw new ArgumentOutOfRangeException(nameof(offset));
             }
 
-            Unsafe.CopyBlockUnaligned(ref _data[offset], ref value[0], (uint)value.Length);
+            Unsafe.CopyBlockUnaligned(ref Data[offset], ref value[0], (uint)value.Length);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -91,7 +89,7 @@ namespace Vicuna.Storage.Data
                 throw new ArgumentOutOfRangeException(nameof(offset));
             }
 
-            Unsafe.CopyBlockUnaligned(ref _data[offset], ref value, (uint)length);
+            Unsafe.CopyBlockUnaligned(ref Data[offset], ref value, (uint)length);
         }
     }
 }

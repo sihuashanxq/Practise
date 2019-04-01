@@ -62,9 +62,4 @@ namespace Vicuna.Storage.Data.Trees
 
         PageRef = 3
     }
-
-    public class FixedPageNumbersTree
-    {
-
-    }
 }

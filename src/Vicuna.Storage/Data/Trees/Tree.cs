@@ -1,9 +1,5 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Diagnostics;
-using System.Linq;
-using System.Text;
-using Vicuna.Storage.Pages;
+using Vicuna.Storage.Paging;
 using Vicuna.Storage.Transactions;
 
 namespace Vicuna.Storage.Data.Trees
@@ -14,7 +10,7 @@ namespace Vicuna.Storage.Data.Trees
 
         public TreePage _root;
 
-        public StorageLevelTransaction _tx;
+        public IStorageTransaction _tx;
 
         public const ushort MaxPageDataSize = (Constants.PageSize - Constants.PageHeaderSize) / 2 - TreeNodeHeader.SizeOf - TreeNodeTransactionHeader.SizeOf;
 

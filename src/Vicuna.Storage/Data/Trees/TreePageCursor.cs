@@ -76,9 +76,9 @@ namespace Vicuna.Storage.Data.Trees
             }
         }
 
-        public TreePageEntry Modify(StorageLevelTransaction tx)
+        public TreePageEntry Modify(IStorageTransaction tx)
         {
-            var page = tx.GetPageToModify2(Current.Page.Header.PageNumber);
+            var page = tx.ModifyPage(Current.Page.Header.PageNumber);
 
             return Current = new TreePageEntry(Current.Index, new TreePage(page));
         }

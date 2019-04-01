@@ -13,5 +13,4 @@ namespace Vicuna.Storage.Data.Trees
         [FieldOffset(8)]
         public long TransactionRollbackNumber;
     }
-
 }

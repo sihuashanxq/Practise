@@ -2,10 +2,11 @@
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using Vicuna.Storage.Paging;
 
 namespace Vicuna.Storage.Data.Trees
 {
-    public unsafe class TreePage : AbstractPage
+    public unsafe class TreePage : Page
     {
         public const ushort MaxPerPageNodeDataSize = 8000;
 
@@ -49,7 +50,7 @@ namespace Vicuna.Storage.Data.Trees
 
         public ref TreePageHeader Header
         {
-            get => ref Unsafe.As<byte, TreePageHeader>(ref Ptr);
+            get => ref Read<TreePageHeader>(0);
         }
 
         public bool Allocate(int index, ushort size, TreeNodeHeaderFlags flags, out ushort position)

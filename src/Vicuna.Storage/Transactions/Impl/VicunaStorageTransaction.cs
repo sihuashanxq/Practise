@@ -22,7 +22,7 @@ namespace Vicuna.Storage.Transactions.Impl
 
         protected internal HashSet<PageIdentity> AllocationPages { get; }
 
-        protected internal ConcurrentDictionary<int, List<PageIdentity>> UnUsingPages { get; }
+        protected internal ConcurrentDictionary<int, HashSet<PageIdentity>> UnUsingPages { get; }
 
         protected internal ConcurrentDictionary<PageIdentity, Page> ModificationPages { get; }
 
@@ -30,7 +30,7 @@ namespace Vicuna.Storage.Transactions.Impl
         {
             _syncRoot = new object();
             AllocationPages = new HashSet<PageIdentity>();
-            UnUsingPages = new ConcurrentDictionary<int, List<PageIdentity>>();
+            UnUsingPages = new ConcurrentDictionary<int, HashSet<PageIdentity>>();
             ModificationPages = new ConcurrentDictionary<PageIdentity, Page>();
         }
 
@@ -115,6 +115,27 @@ namespace Vicuna.Storage.Transactions.Impl
             return newPage;
         }
 
+        public void FreePage(PageIdentity identity)
+        {
+            UnUsingPages.AddOrUpdate(identity.Token, new HashSet<PageIdentity>() { identity }, (k, list) =>
+            {
+                list.Add(identity);
+                return list;
+            });
+        }
+
+        public void FreePage(IEnumerable<PageIdentity> identities)
+        {
+            foreach (var item in identities.GroupBy(i => i.Token))
+            {
+                UnUsingPages.AddOrUpdate(item.Key, new HashSet<PageIdentity>(item), (k, list) =>
+                {
+                    list.AddRange(item);
+                    return list;
+                });
+            }
+        }
+
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
         protected internal Page ModifyPage(Page oldPage)
         {
@@ -170,16 +191,5 @@ namespace Vicuna.Storage.Transactions.Impl
         {
 
         }
-    }
-
-    public enum TransactionState
-    {
-        Waitting,
-
-        Running,
-
-        Aborted,
-
-        Commited
     }
 }

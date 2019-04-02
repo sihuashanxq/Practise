@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Runtime.InteropServices;
 using Vicuna.Storage.Pages;
+using Vicuna.Storage.Paging;
 
 namespace Vicuna.Storage.Data.Trees
 {
@@ -50,7 +51,7 @@ namespace Vicuna.Storage.Data.Trees
     public unsafe struct TreePageHeader
     {
         [FieldOffset(0)]
-        public PageFlags Flags;
+        public PageHeaderFlags Flags;
 
         [FieldOffset(1)]
         public ushort Low;

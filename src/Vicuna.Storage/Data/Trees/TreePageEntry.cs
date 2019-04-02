@@ -8,8 +8,8 @@
 
         public TreePageEntry(int index, TreePage page)
         {
-            Index = index;
             Page = page;
+            Index = index;
         }
     }
 }

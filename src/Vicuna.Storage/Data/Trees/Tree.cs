@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using Vicuna.Storage.Extensions;
 using Vicuna.Storage.Paging;
 using Vicuna.Storage.Transactions;
@@ -21,35 +22,35 @@ namespace Vicuna.Storage.Data.Trees
             }
         }
 
-        public TreeCursor Get(TreeNodeDataSlice key, ILowLevelTransaction tx)
+        public TreeCursor Get(ILowLevelTransaction tx, TreeNodeDataSlice key)
         {
-            return BuildCursorForKey(key, tx);
+            return BuildCursorForKey(tx, key);
         }
 
-        public TreeNodeDataSlice GetValue(TreeNodeDataSlice key, ILowLevelTransaction tx)
+        public TreeNodeDataSlice GetValue(ILowLevelTransaction tx, TreeNodeDataSlice key)
         {
-            var cursor = BuildCursorForKey(key, tx);
+            var cursor = BuildCursorForKey(tx, key);
             if (cursor != null && cursor.Entry != null && cursor.Entry.Page != null)
             {
-                cursor.Entry.Page.Search(key);
+                cursor.Entry.Search(key);
 
-                return cursor.Entry.Page.GetNodeData(cursor.Entry.Page.LastMatchIndex);
+                return cursor.Entry.GetNodeData(cursor.Entry.LastMatchIndex);
             }
 
             return new TreeNodeDataSlice();
         }
 
-        public unsafe void Insert(TreeNodeDataEntry data, ILowLevelTransaction tx)
+        public unsafe void Insert(ILowLevelTransaction tx, TreeNodeDataEntry data)
         {
             Init(tx);
 
-            var cursor = BuildCursorForKey(data.Key, tx);
+            var cursor = BuildCursorForKey(tx, data.Key);
             if (!cursor.Entry.Page.IsLeaf)
             {
                 throw new InvalidOperationException("not a leaf page!");
             }
 
-            var match = SearchKeyForModify(cursor.Entry, data.Key);
+            var match = SearchForModifyKey(cursor.Entry, data.Key);
             if (match == 0 && _isUnique)
             {
                 throw new InvalidCastException($"mulpti key");
@@ -60,51 +61,117 @@ namespace Vicuna.Storage.Data.Trees
                 throw new InvalidOperationException($"modify page failed!");
             }
 
+            Insert(tx, cursor.Entry, data);
+        }
+
+        private unsafe void Insert(ILowLevelTransaction tx, TreePageEntry entry, TreeNodeDataEntry data)
+        {
             var size = data.Size;
-            var overflowSize = 0;
-            if (size > MaxPageDataSize)
+            if (size >= MaxPageDataSize)
             {
-                size = data.Key.Size;
-                overflowSize = data.Value.Size;
+                InsertOverflow(tx, entry, data);
+                return;
             }
 
-            var entry = cursor.Entry;
-            if (!entry.Page.Allocate(entry.Page.LastMatchIndex, (ushort)size, TreeNodeHeaderFlags.Data, out var pos))
+            if (entry.Allocate(entry.LastMatchIndex, (ushort)size, TreeNodeHeaderFlags.Data, out var pos))
             {
-                var balanceIndex = Balance(tx, entry, data.Key, entry.Page.LastMatchIndex);
-                if (balanceIndex <= entry.Page.LastMatchIndex)
-                {
-                    //add to new right page
-                    entry.Page.LastMatchIndex = entry.Page.LastMatchIndex - balanceIndex;
-                }
-
-                if (!entry.Page.Allocate(entry.Page.LastMatchIndex, (ushort)size, TreeNodeHeaderFlags.Data, out pos))
-                {
-                    throw new InvalidOperationException("allocate node space faild!");
-                }
+                entry.InsertDataNode(entry.LastMatchIndex, pos, data, 0l);
+                return;
             }
 
-            entry.Page.InsertDataNode(entry.Page.LastMatchIndex, pos, data, 0l);
+            var index = Balance(tx, entry, data.Key, entry.LastMatchIndex);
+            if (index <= entry.LastMatchIndex)
+            {
+                //add to new right page
+                entry.LastMatchIndex = entry.LastMatchIndex - index;
+            }
+
+            if (!entry.Allocate(entry.LastMatchIndex, (ushort)size, TreeNodeHeaderFlags.Data, out pos))
+            {
+                throw new InvalidOperationException("allocate node space faild!");
+            }
+
+            entry.InsertDataNode(entry.LastMatchIndex, pos, data, 0l);
+        }
+
+        public void InsertOverflow(ILowLevelTransaction tx, TreePageEntry entry, TreeNodeDataEntry data)
+        {
+            var size = data.Key.Size;
+            var dataSize = data.Value.Size;
+            var overflowPages = AllocateOverflows(tx, entry.Header.PagerId, dataSize);
+
+            for (var i = 0; i < overflowPages.Length; i++)
+            {
+                var pageSize = Math.Min(OverflowPage.Capacity, dataSize);
+
+                overflowPages[i].Write(Constants.PageHeaderSize, data.Value.Data.Slice(i * OverflowPage.Capacity, pageSize));
+
+                dataSize -= pageSize;
+            }
+
+            if (entry.Allocate(entry.LastMatchIndex, (ushort)size, TreeNodeHeaderFlags.Data, out var pos))
+            {
+                entry.InsertPageRefNode(entry.LastMatchIndex, pos, data.Key, overflowPages[0].Header.PageNumber);
+                return;
+            }
+
+            var index = Balance(tx, entry, data.Key, entry.LastMatchIndex);
+            if (index <= entry.LastMatchIndex)
+            {
+                //add to new right page
+                entry.LastMatchIndex = entry.LastMatchIndex - index;
+            }
+
+            if (!entry.Allocate(entry.LastMatchIndex, (ushort)size, TreeNodeHeaderFlags.Data, out pos))
+            {
+                throw new InvalidOperationException("allocate node space faild!");
+            }
+
+            entry.InsertPageRefNode(entry.LastMatchIndex, pos, data.Key, overflowPages[0].Header.PageNumber);
+        }
+
+        public OverflowPage[] AllocateOverflows(ILowLevelTransaction tx, int pagerId, int dataSize)
+        {
+            var count = dataSize % OverflowPage.Capacity == 0
+               ? dataSize / OverflowPage.Capacity
+               : dataSize / OverflowPage.Capacity + 1;
+
+            var identities = tx.AllocatePage(pagerId, (uint)count);
+            var overflowPages = new OverflowPage[count];
+
+            for (var i = 0; i < identities.Count; i++)
+            {
+                if (i == 0)
+                {
+                    overflowPages[i] = tx.ModifyPage(identities[i]).AsOverflow();
+                    continue;
+                }
+
+                overflowPages[i] = tx.ModifyPage(identities[i]).AsOverflow();
+                overflowPages[i - 1].Header.NextPageNumber = overflowPages[i].Header.PageNumber;
+            }
+
+            return overflowPages;
         }
 
         public unsafe int Balance(ILowLevelTransaction tx, TreePageEntry entry, TreeNodeDataSlice key, int midIndex)
         {
-            var newEntry = AllocateEntry(tx, entry.Page.Header.NodeFlags, entry.Parent, entry.Index + 1);
+            var newEntry = AllocateEntry(tx, entry.Header.NodeFlags, entry.Parent, entry.Index + 1);
             if (newEntry == null)
             {
                 throw new InvalidOperationException("allocate new page failed!");
             }
 
-            var balanceIndex = entry.Page.CopyEntriesToNewPage(midIndex, newEntry.Page);
+            var balanceIndex = entry.CopyEntriesToNewPage(midIndex, newEntry.Page);
             if (balanceIndex > midIndex)
             {
-                Balance(tx, entry, newEntry, newEntry.Page.MinKey);
+                Balance(tx, entry, newEntry, newEntry.MinKey);
 
                 return balanceIndex;
             }
 
             var index = midIndex - balanceIndex;
-            var newKey = index > 0 ? newEntry.Page.MinKey : key;
+            var newKey = index > 0 ? newEntry.MinKey : key;
 
             Balance(tx, entry, newEntry, newKey);
 
@@ -124,7 +191,7 @@ namespace Vicuna.Storage.Data.Trees
                 return;
             }
 
-            var entry = AllocateEntry(tx, curEntry.Page.Header.NodeFlags, null, curEntry.Index);
+            var entry = AllocateEntry(tx, curEntry.Header.NodeFlags, null, curEntry.Index);
             if (entry == null)
             {
                 throw new NullReferenceException(nameof(entry));
@@ -152,18 +219,18 @@ namespace Vicuna.Storage.Data.Trees
                 curEntry.Index = 0;
                 newEntry.Index = 1;
 
-                parent.Page.Allocate(0, (ushort)key.Size, TreeNodeHeaderFlags.PageRef, out var curPos);
+                parent.Allocate(0, (ushort)key.Size, TreeNodeHeaderFlags.PageRef, out var curPos);
                 parent.Page.Allocate(1, 0, TreeNodeHeaderFlags.PageRef, out var newPos);
 
-                parent.Page.InsertPageRefNode(0, curPos, key, curEntry.Page.Header.PageNumber);
-                parent.Page.InsertPageRefNode(1, newPos, new TreeNodeDataSlice(), newEntry.Page.Header.PageNumber);
+                parent.InsertPageRefNode(0, curPos, key, curEntry.Header.PageNumber);
+                parent.InsertPageRefNode(1, newPos, new TreeNodeDataSlice(), newEntry.Header.PageNumber);
                 return;
             }
 
-            if (!parent.Page.Allocate(index, (ushort)key.Size, TreeNodeHeaderFlags.PageRef, out var pos))
+            if (!parent.Allocate(index, (ushort)key.Size, TreeNodeHeaderFlags.PageRef, out var pos))
             {
-                var halfIndex = parent.Page.Header.ItemCount / 2;
-                var halfKey = parent.Page.GetNodeKey(halfIndex - 1);
+                var halfIndex = parent.Header.ItemCount / 2;
+                var halfKey = parent.GetNodeKey(halfIndex - 1);
                 var balanceIndex = Balance(tx, parent, halfKey, halfIndex);
                 if (balanceIndex <= halfIndex && balanceIndex <= curEntry.Index)
                 {
@@ -182,39 +249,38 @@ namespace Vicuna.Storage.Data.Trees
                 }
             }
 
-            parent.Page[index + 1].PageNumber = newEntry.Page.Header.PageNumber;
-            parent.Page.InsertPageRefNode(index, pos, key, curEntry.Page.Header.PageNumber);
+            parent.Page[index + 1].PageNumber = newEntry.Header.PageNumber;
+            parent.Page.InsertPageRefNode(index, pos, key, curEntry.Header.PageNumber);
         }
 
-        private TreeCursor BuildCursorForKey(TreeNodeDataSlice key, ILowLevelTransaction tx)
+        private TreeCursor BuildCursorForKey(ILowLevelTransaction tx, TreeNodeDataSlice key)
         {
             var entry = new TreePageEntry(_root, 0, null);
 
-            while (entry.Page != null &&
-                   entry.Page.SearchPageIfBranch(key, tx, out var page))
+            while (entry.SearchPageIfBranch(tx, key, out var page))
             {
-                entry = new TreePageEntry(page, entry.Page.LastMatchIndex, entry);
+                entry = new TreePageEntry(page, entry.LastMatchIndex, entry);
             }
 
             return new TreeCursor(new Memory<byte>(key.Data.ToArray()), tx, entry);
         }
 
-        private int SearchKeyForModify(TreePageEntry entry, TreeNodeDataSlice key)
+        private int SearchForModifyKey(TreePageEntry entry, TreeNodeDataSlice key)
         {
-            entry.Page.Search(key);
+            entry.Search(key);
 
-            if (entry.Page.LastMatch < 0)
+            if (entry.LastMatch < 0)
             {
-                entry.Page.LastMatchIndex++;
+                entry.LastMatchIndex++;
             }
 
-            return entry.Page.LastMatch;
+            return entry.LastMatch;
         }
 
         private bool ModifyEntry(TreePageEntry entry, ILowLevelTransaction tx)
         {
-            var lastMatch = entry.Page.LastMatch;
-            var lastMatchIndex = entry.Page.LastMatchIndex;
+            var lastMatch = entry.LastMatch;
+            var lastMatchIndex = entry.LastMatchIndex;
 
             var newPage = tx.ModifyPage(entry.Page);
             if (newPage == null)
@@ -223,8 +289,8 @@ namespace Vicuna.Storage.Data.Trees
             }
 
             entry.Page = newPage;
-            entry.Page.LastMatch = lastMatch;
-            entry.Page.LastMatchIndex = lastMatchIndex;
+            entry.LastMatch = lastMatch;
+            entry.LastMatchIndex = lastMatchIndex;
             return true;
         }
 
@@ -232,7 +298,7 @@ namespace Vicuna.Storage.Data.Trees
         {
             var identity = tx.AllocatePage(0);
             var page = tx.ModifyPage(identity);
-            var treePage = page.AsTreePage();
+            var treePage = page.AsTree();
 
             ref var header = ref treePage.Header;
 

@@ -1,6 +1,7 @@
 ﻿using Vicuna.Storage.Transactions.Impl;
 using Vicuna.Storage.Paging;
 using System.Collections.Generic;
+using Vicuna.Storage.Data.Trees;
 
 namespace Vicuna.Storage.Transactions
 {

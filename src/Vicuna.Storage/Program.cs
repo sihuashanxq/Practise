@@ -36,7 +36,7 @@ namespace Vicuna.Storage
 
             tx.Commit();
 
-            for (var i = 0; i < 3000000; i++)
+            for (var i = 0; i < 100000; i++)
             {
                 Span<byte> bytes = Encoding.UTF8.GetBytes(i.ToString());
                 Span<byte> key = new byte[bytes.Length + 2];
@@ -46,22 +46,23 @@ namespace Vicuna.Storage
                 var values = new byte[value.Length + 2];
                 values[0] = (byte)DataValueType.String;
                 values[1] = (byte)value.Length;
+
                 //set key size
                 key[0] = (byte)DataValueType.String;
                 key[1] = (byte)bytes.Length;
 
                 bytes.CopyTo(key.Slice(2));
-
-                tree.Insert(new TreeNodeDataEntry()
+                value.CopyTo(values.AsSpan().Slice(2));
+                tree.Insert(tx, new TreeNodeDataEntry()
                 {
                     Key = new TreeNodeDataSlice(key, TreeNodeDataSliceType.Key),
-                    Value = new TreeNodeDataSlice(value, TreeNodeDataSliceType.Value)
-                }, tx);
+                    Value = new TreeNodeDataSlice(values, TreeNodeDataSliceType.Value)
+                });
             };
 
             var err = new List<string>();
 
-            for (var i = 0; i < 3000000; i++)
+            for (var i = 0; i < 100000; i++)
             {
                 try
                 {
@@ -75,12 +76,18 @@ namespace Vicuna.Storage
 
                     bytes.CopyTo(key.Slice(2));
 
-                    var value = tree.GetValue(new TreeNodeDataSlice(key, TreeNodeDataSliceType.Key), tx);
+                    var value = tree.GetValue(tx, new TreeNodeDataSlice(key, TreeNodeDataSliceType.Key));
                     if (value.Size == 0)
                     {
                         err.Add(i.ToString());
                     }
-                    //Console.WriteLine(value.ToString());
+
+                    if (value.ToString() != "say :" + i.ToString())
+                    {
+                        err.Add(i.ToString());
+                    }
+
+                    Console.WriteLine(value.ToString());
                 }
                 catch (Exception e)
                 {

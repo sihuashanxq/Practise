@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using Vicuna.Storage.Extensions;
 using Vicuna.Storage.Paging;
 using Vicuna.Storage.Transactions;
@@ -336,7 +336,7 @@ namespace Vicuna.Storage.Data.Trees
             BinarySearch(key, 0, count - 1);
         }
 
-        public bool SearchPageIfBranch(TreeNodeDataSlice key, ILowLevelTransaction tx, out TreePage page)
+        public bool SearchPageIfBranch(ILowLevelTransaction tx, TreeNodeDataSlice key, out TreePage page)
         {
             if (IsLeaf)
             {
@@ -359,7 +359,7 @@ namespace Vicuna.Storage.Data.Trees
                 throw null;
             }
 
-            page = data.AsTreePage();
+            page = data.AsTree();
             return true;
         }
 
@@ -432,11 +432,6 @@ namespace Vicuna.Storage.Data.Trees
             var min = 1;
             var count = Header.ItemCount;
             var start = index < min ? min : index;
-
-            if (MinKey.ToString() == "738523")
-            {
-
-            }
 
             for (var i = count - 1; i >= index; i--)
             {

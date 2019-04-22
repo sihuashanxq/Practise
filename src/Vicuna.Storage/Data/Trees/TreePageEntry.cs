@@ -6,10 +6,13 @@
 
         public TreePage Page { get; set; }
 
-        public TreePageEntry(int index, TreePage page)
+        public TreePageEntry Parent { get; set; }
+
+        public TreePageEntry(TreePage page, int index, TreePageEntry parent)
         {
             Page = page;
             Index = index;
+            Parent = parent;
         }
     }
 }

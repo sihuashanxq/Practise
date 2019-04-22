@@ -6,24 +6,22 @@ namespace Vicuna.Storage.Paging
     public struct PageIdentity
     {
         [FieldOffset(0)]
-        public int Token;
+        public int PagerId;
 
         [FieldOffset(4)]
         public long PageNumber;
 
-        public const int SizeOf = 12;
+        public const int SizeOf = sizeof(int) + sizeof(long);
 
-        public static PageIdentity Empty = new PageIdentity(-1, -1);
-
-        public PageIdentity(int token, long pageNumber)
+        public PageIdentity(int pagerId, long pageNumber)
         {
-            Token = token;
+            PagerId = pagerId;
             PageNumber = pageNumber;
         }
 
         public override int GetHashCode()
         {
-            var hashCode = Token;
+            var hashCode = PagerId;
 
             hashCode += hashCode * 31 ^ PageNumber.GetHashCode();
 
@@ -39,7 +37,7 @@ namespace Vicuna.Storage.Paging
 
             if (obj is PageIdentity identity)
             {
-                return identity.Token == Token && identity.PageNumber == PageNumber;
+                return identity.PagerId == PagerId && identity.PageNumber == PageNumber;
             }
 
             return false;

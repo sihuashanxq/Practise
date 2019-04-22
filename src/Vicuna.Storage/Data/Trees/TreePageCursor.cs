@@ -4,88 +4,102 @@ using Vicuna.Storage.Transactions;
 
 namespace Vicuna.Storage.Data.Trees
 {
+    public class TreeCursor
+    {
+        private Memory<byte> _key;
+
+        private ILowLevelTransaction _tx;
+
+        public TreePageEntry Entry { get; set; }
+
+        public TreeCursor(Memory<byte> key, ILowLevelTransaction tx, TreePageEntry entry)
+        {
+            _key = key;
+            _tx = tx;
+            Entry = entry;
+        }
+    }
+
     public class TreePageCursor
     {
-        public int Index { get; internal set; }
+        private int _currentIndex;
 
-        public List<TreePageEntry> Pages { get; internal set; }
+        private List<TreePageEntry> _entries;
 
-        public TreePageEntry Root => Pages[0] ?? Pages[1];
+        public TreePageEntry Root => _entries[0] ?? _entries[1];
 
         public TreePageEntry Current
         {
             get
             {
-                if (Index > Pages.Count - 1 || Index < 0)
+                if (_currentIndex > _entries.Count - 1 || _currentIndex < 0)
                 {
                     throw new IndexOutOfRangeException();
                 }
 
-                return Pages[Index];
+                return _entries[_currentIndex];
             }
             internal set
             {
-                if (Index > Pages.Count - 1 || Index < 0)
+                if (_currentIndex > _entries.Count - 1 || _currentIndex < 0)
                 {
                     throw new IndexOutOfRangeException();
                 }
 
-                Pages[Index] = value;
+                _entries[_currentIndex] = value;
             }
         }
 
         public TreePageCursor()
         {
-            Index = -1;
-            Pages = new List<TreePageEntry>();
+            _currentIndex = -1;
+            _entries = new List<TreePageEntry>();
         }
 
         public TreePageCursor(IEnumerable<TreePageEntry> pages) : this()
         {
             foreach (var item in pages)
             {
-                Pages.Add(item);
+                _entries.Add(item);
             }
         }
 
         public TreePageEntry Pop()
         {
-            if (Index > Pages.Count)
+            if (_currentIndex > _entries.Count)
             {
                 return null;
             }
 
-            var page = Pages[Index];
+            var page = _entries[_currentIndex];
 
-            Index--;
+            _currentIndex--;
 
             return page;
         }
 
         public void Push(TreePageEntry newPage)
         {
-            if (Index >= Pages.Count - 1)
+            if (_currentIndex >= _entries.Count - 1)
             {
-                Index++;
-                Pages.Add(newPage);
+                _currentIndex++;
+                _entries.Add(newPage);
             }
             else
             {
-                Index++;
-                Pages.Insert(Index, newPage);
+                _currentIndex++;
+                _entries.Insert(_currentIndex, newPage);
             }
         }
 
-        public TreePageEntry Modify(IStorageTransaction tx)
+        public void Update(TreePageEntry newPage)
         {
-            var page = tx.ModifyPage(Current.Page.Header.PageNumber);
-
-            return Current = new TreePageEntry(Current.Index, new TreePage(page));
+            Current = newPage;
         }
 
         public void Reset()
         {
-            Index = Pages.Count - 1;
+            _currentIndex = _entries.Count - 1;
         }
 
         public IDisposable CreateScope()
@@ -101,13 +115,13 @@ namespace Vicuna.Storage.Data.Trees
 
             public TreePageCursorScope(TreePageCursor cursor)
             {
-                Index = cursor.Index;
+                Index = cursor._currentIndex;
                 Cursor = cursor;
             }
 
             public void Dispose()
             {
-                Cursor.Index = Index;
+                Cursor._currentIndex = Index;
             }
         }
     }

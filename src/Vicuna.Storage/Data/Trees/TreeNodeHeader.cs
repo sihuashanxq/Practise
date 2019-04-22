@@ -38,20 +38,6 @@ namespace Vicuna.Storage.Data.Trees
                     return (ushort)(SizeOf + SlotSize + KeySize);
             }
         }
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        public ushort GetValueOffset(ushort nodePosition)
-        {
-            switch (NodeFlags)
-            {
-                case TreeNodeHeaderFlags.Data:
-                    return (ushort)(SizeOf + nodePosition + KeySize + TreeNodeTransactionHeader.SizeOf);
-                case TreeNodeHeaderFlags.DataRef:
-                    return (ushort)(SizeOf + nodePosition + KeySize);
-                default:
-                    return (ushort)(SizeOf + nodePosition + KeySize);
-            }
-        }
     }
 
     public enum TreeNodeHeaderFlags : byte

@@ -20,7 +20,12 @@ namespace Vicuna.Storage.Paging
         /// <summary>
         /// </summary>
         /// <param name="pages"></param>
-        void Free(IEnumerable<PageIdentity> pages);
+        void FreePage(PageIdentity page);
+
+        /// <summary>
+        /// </summary>
+        /// <param name="pages"></param>
+        void FreePage(IEnumerable<PageIdentity> pages);
 
         /// <summary>
         /// </summary>

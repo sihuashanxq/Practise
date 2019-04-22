@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Runtime.InteropServices;
-using Vicuna.Storage.Pages;
 using Vicuna.Storage.Paging;
 
 namespace Vicuna.Storage.Data.Trees
@@ -24,27 +23,37 @@ namespace Vicuna.Storage.Data.Trees
     /// </summary>
     public enum DataValueType : byte
     {
-        None = 255,
+        Null = 1,
 
-        Int = 1,
+        Char = 2,
 
-        Bool = 2,
+        Byte = 3,
 
-        Date = 3,
+        Array = 4,
 
-        Byte = 4,
+        Int16 = 5,
 
-        Long = 5,
+        Int32 = 6,
 
-        Short = 6,
+        Int64 = 7,
 
-        Float = 7,
+        UInt16 = 8,
 
-        Double = 8,
+        UInt32 = 9,
 
-        Object = 9,
+        UInt64 = 10,
 
-        String = 10
+        Single = 11,
+
+        Double = 12,
+
+        Object = 13,
+
+        String = 14,
+
+        Boolean = 15,
+
+        DateTime = 16
     }
 
     [StructLayout(LayoutKind.Explicit, Pack = 1, Size = 96)]
@@ -54,34 +63,34 @@ namespace Vicuna.Storage.Data.Trees
         public PageHeaderFlags Flags;
 
         [FieldOffset(1)]
-        public ushort Low;
-
-        [FieldOffset(3)]
-        public ushort Upper;
+        public int PagerId;
 
         [FieldOffset(5)]
-        public ushort KeySize;
-
-        [FieldOffset(7)]
         public long PageNumber;
 
+        [FieldOffset(13)]
+        public ushort Low;
+
         [FieldOffset(15)]
-        public ushort ItemCount;
+        public ushort Upper;
 
         [FieldOffset(17)]
-        public ushort UsedLength;
+        public ushort KeySize;
 
         [FieldOffset(19)]
-        public ushort LastDeleted;
+        public ushort ItemCount;
 
         [FieldOffset(21)]
+        public ushort UsedLength;
+
+        [FieldOffset(23)]
+        public ushort LastDeleted;
+
+        [FieldOffset(25)]
         public TreeNodeFlags NodeFlags;
 
-        [FieldOffset(22)]
-        public fixed byte MetaKeys[16];
-
-        [FieldOffset(54)]
-        public fixed byte Reserved[42];
+        [FieldOffset(26)]
+        public fixed byte Reserved[70];
     }
 
     [StructLayout(LayoutKind.Explicit, Size = 2)]
@@ -91,6 +100,6 @@ namespace Vicuna.Storage.Data.Trees
         public byte Size;
 
         [FieldOffset(1)]
-        public DataValueType KeyType;
+        public DataValueType Type;
     }
 }

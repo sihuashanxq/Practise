@@ -1,8 +1,10 @@
-﻿namespace Vicuna.Storage.Paging
+﻿using Vicuna.Storage.Stores;
+
+namespace Vicuna.Storage.Paging
 {
     /// <summary>
     /// </summary>
-    public interface IPager
+    public interface IPager : IPageAllocator
     {
         /// <summary>
         /// </summary>
@@ -14,28 +16,23 @@
 
         /// <summary>
         /// </summary>
-        IPageAllocator Allocator { get; }
+        IFileStore Store { get; }
 
         /// <summary>
         /// </summary>
         /// <param name="count"></param>
-        void AddPage(uint count);
-
-        /// <summary>
-        /// </summary>
-        /// <param name="flushToDisk"></param>
-        void Flush(bool flushToDisk);
+        long AddPage(uint count);
 
         /// <summary>
         /// </summary>
         /// <param name="pageNumber"></param>
         /// <returns></returns>
-        byte[] GetPageData(long pageNumber);
+        byte[] GetPage(long pageNumber);
 
         /// <summary>
         /// </summary>
         /// <param name="pageNumber"></param>
         /// <param name="data"></param>
-        void SetPageData(long pageNumber, byte[] data);
+        void SetPage(long pageNumber, byte[] data);
     }
 }

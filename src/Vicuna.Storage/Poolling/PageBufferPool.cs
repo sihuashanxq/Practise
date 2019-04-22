@@ -4,15 +4,17 @@ using System.Threading;
 
 namespace Vicuna.Storage.Paging.Impl
 {
-    public class VicunaPageBufferBool : IPageBufferPool
+    public class PageBufferPool : IPageBufferPool
     {
-        public virtual uint Limit { get; }
-
-        protected internal Action<PageIdentity, PageEntry> OnCleaning { get; set; }
+        private readonly IPageManager _pageManager;
 
         private readonly ConcurrentDictionary<PageIdentity, PageEntry> _buffers;
 
-        public VicunaPageBufferBool()
+        public virtual uint Limit { get; }
+
+        public Action<PageIdentity, PageEntry> OnCleaning { get; set; }
+
+        public PageBufferPool()
         {
             _buffers = new ConcurrentDictionary<PageIdentity, PageEntry>();
         }
@@ -28,14 +30,14 @@ namespace Vicuna.Storage.Paging.Impl
             return null;
         }
 
-        public virtual void SetEntry(PageEntry bufferEntry)
+        public virtual void AddEntry(PageEntry entry)
         {
-            _buffers.AddOrUpdate(bufferEntry.Page.FileHeader.Identity, bufferEntry, (k, v) => bufferEntry);
+            _buffers.AddOrUpdate(new PageIdentity(entry.Page.PageHeader.PagerId, entry.Page.PageHeader.PageNumber), entry, (k, v) => entry);
         }
 
-        public void SetEntry(Page page, int version, PageEntryState state)
+        public void AddEntry(Page page, PageEntryState state)
         {
-            SetEntry(new PageEntry(page, version, state));
+            AddEntry(new PageEntry(page, 0, state));
         }
 
         public void Dispose()

@@ -6,17 +6,14 @@ namespace Vicuna.Storage.Paging
     /// Page Header
     /// </summary>
     [StructLayout(LayoutKind.Explicit, Pack = 1, Size = SizeOf)]
-    public unsafe struct PageHeader
+    public unsafe struct PageMapHeader
     {
-        public const int SizeOf = 13;
+        public const int SizeOf = sizeof(PageHeaderFlags) + PageIdentity.SizeOf;
 
         [FieldOffset(0)]
         public PageHeaderFlags Flags;
 
         [FieldOffset(1)]
-        public int PagerId;
-
-        [FieldOffset(5)]
-        public long PageNumber;
+        public PageIdentity Identity;
     }
 }

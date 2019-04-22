@@ -5,9 +5,9 @@ namespace Vicuna.Storage.Paging
     [Flags]
     public enum PageEntryState
     {
-        Flushed = 1,
+        Clean = 1,
 
-        Dirtied = 2,
+        Dirty = 2,
 
         None = 0
     }

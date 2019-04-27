@@ -2,26 +2,26 @@
 
 namespace Vicuna.Storage.Paging
 {
-    [StructLayout(LayoutKind.Explicit, Size = SizeOf)]
-    public struct PageIdentity
+    [StructLayout(LayoutKind.Explicit, Pack = 1, Size = SizeOf)]
+    public struct PageNumberInfo
     {
+        public const int SizeOf = sizeof(int) + sizeof(long);
+
         [FieldOffset(0)]
-        public int PagerId;
+        public int StoreId;
 
         [FieldOffset(4)]
         public long PageNumber;
 
-        public const int SizeOf = sizeof(int) + sizeof(long);
-
-        public PageIdentity(int pagerId, long pageNumber)
+        public PageNumberInfo(int storeId, long pageNumber)
         {
-            PagerId = pagerId;
+            StoreId = storeId;
             PageNumber = pageNumber;
         }
 
         public override int GetHashCode()
         {
-            var hashCode = PagerId;
+            var hashCode = StoreId;
 
             hashCode += hashCode * 31 ^ PageNumber.GetHashCode();
 
@@ -35,20 +35,20 @@ namespace Vicuna.Storage.Paging
                 return true;
             }
 
-            if (obj is PageIdentity identity)
+            if (obj is PageNumberInfo number)
             {
-                return identity.PagerId == PagerId && identity.PageNumber == PageNumber;
+                return number.StoreId == StoreId && number.PageNumber == PageNumber;
             }
 
             return false;
         }
 
-        public static bool operator ==(PageIdentity left, PageIdentity right)
+        public static bool operator ==(PageNumberInfo left, PageNumberInfo right)
         {
             return left.Equals(right);
         }
 
-        public static bool operator !=(PageIdentity left, PageIdentity right)
+        public static bool operator !=(PageNumberInfo left, PageNumberInfo right)
         {
             return !left.Equals(right);
         }

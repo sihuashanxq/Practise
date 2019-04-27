@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Text;
 using Vicuna.Storage.Data.Trees;
 using Vicuna.Storage.Paging.Impl;
@@ -26,137 +27,81 @@ namespace Vicuna.Storage
         {
             var manager = new PageManager();
             var pool = new PageBufferPool();
-
-            manager._pagerMaps[0] = new Pager(0, new FileStore("1.txt"));
+            var stop = new Stopwatch();
+            var file = new FileStore("1.txt");
+            manager._pagers[0] = new Pager(file);
 
             var tx = new LowLevelTransaction(pool, manager);
             var tree = new Tree();
 
-            tree.Init(tx);
+            //tree.Init(tx);
 
-            tx.Commit();
-
-            for (var i = 0; i < 100000; i++)
-            {
-                Span<byte> bytes = Encoding.UTF8.GetBytes(i.ToString());
-                Span<byte> key = new byte[bytes.Length + 2];
-
-                //value
-                var value = Encoding.UTF8.GetBytes(("say :" + i).ToString());
-                var values = new byte[value.Length + 2];
-                values[0] = (byte)DataValueType.String;
-                values[1] = (byte)value.Length;
-
-                //set key size
-                key[0] = (byte)DataValueType.String;
-                key[1] = (byte)bytes.Length;
-
-                bytes.CopyTo(key.Slice(2));
-                value.CopyTo(values.AsSpan().Slice(2));
-                tree.Insert(tx, new TreeNodeDataEntry()
-                {
-                    Key = new TreeNodeDataSlice(key, TreeNodeDataSliceType.Key),
-                    Value = new TreeNodeDataSlice(values, TreeNodeDataSliceType.Value)
-                });
-            };
-
-            var err = new List<string>();
-
-            for (var i = 0; i < 100000; i++)
-            {
-                try
-                {
-                    Span<byte> bytes = Encoding.UTF8.GetBytes(i.ToString());
-                    Span<byte> key = new byte[bytes.Length + 2];
-
-                    //value
-                    //set key size
-                    key[0] = (byte)DataValueType.String;
-                    key[1] = (byte)bytes.Length;
-
-                    bytes.CopyTo(key.Slice(2));
-
-                    var value = tree.GetValue(tx, new TreeNodeDataSlice(key, TreeNodeDataSliceType.Key));
-                    if (value.Size == 0)
-                    {
-                        err.Add(i.ToString());
-                    }
-
-                    if (value.ToString() != "say :" + i.ToString())
-                    {
-                        err.Add(i.ToString());
-                    }
-
-                    Console.WriteLine(value.ToString());
-                }
-                catch (Exception e)
-                {
-                    err.Add(i.ToString());
-                }
-            }
-
-            Console.WriteLine(err.Count);
-
-            var n = 0;
-
-            //var pp = new StorageFilePageManager(1024 * 100, new StorageFile(new FileStream(@"4.txt", FileMode.OpenOrCreate)));
-            //var st = new Stopwatch();
-            //var tx = new StorageLevelTransaction(new Transactions.StorageLevelTransactionBufferPool(pp));
-            //var tree = new Data.Trees.Tree()
-            //{
-            //    _tx = tx
-            //};
-
-            //var mixLen = 10;
-            //var count = 200000;
-
-            //for (var i = 0; i < count; i++)
+            //stop.Start();
+            //for (var i = 0; i < 2000000; i++)
             //{
             //    Span<byte> bytes = Encoding.UTF8.GetBytes(i.ToString());
-            //    Span<byte> key = new byte[bytes.Length + 1];
+            //    Span<byte> key = new byte[bytes.Length + 2];
 
-            //    //value
-            //    Span<byte> value = Encoding.UTF8.GetBytes(("say :" + i).ToString ());
+            //    var value = Encoding.UTF8.GetBytes(("say :" + i).ToString());
+            //    var values = new byte[value.Length + 2];
+            //    values[0] = (byte)DataValueType.String;
+            //    values[1] = (byte)value.Length;
 
-            //    //set key size
-            //    key[0] = (byte)bytes.Length;
+            //    set key size
+            //    key[0] = (byte)DataValueType.String;
+            //    key[1] = (byte)bytes.Length;
 
-            //    bytes.CopyTo(key.Slice(1));
-
-            //    tree.Insert(new TreeNodeKey(key), new TreeNodeValue(value), Data.Trees.TreeNodeHeaderFlags.Data);
-
+            //    bytes.CopyTo(key.Slice(2));
+            //    value.CopyTo(values.AsSpan().Slice(2));
+            //    tree.Insert(tx, new TreeNodeDataEntry()
+            //    {
+            //        Key = new TreeNodeDataSlice(key, TreeNodeDataSliceType.Key),
+            //        Value = new TreeNodeDataSlice(values, TreeNodeDataSliceType.Value)
+            //    });
             //};
 
-            //st.Start();
-            //var str = new List<string>();
-            //for (var i = 0; i < count; i++)
-            //{
-            //    try
-            //    {
-            //        Span<byte> bytes = Encoding.UTF8.GetBytes(i.ToString());
-            //        Span<byte> key = new byte[bytes.Length + 1];
+            //stop.Stop();
+            Console.WriteLine(stop.ElapsedMilliseconds);
 
-            //        //set key size
-            //        key[0] = (byte)bytes.Length;
+            tx.Commit();
+            file.Sync();
+            var err = new List<string>();
 
-            //        bytes.CopyTo(key.Slice(1));
+            for (var n = 0; n < 100; n++)
+            {
+                stop.Reset();
+                stop.Start();
 
-            //        var value = tree.Get(new TreeNodeKey(key));
+                for (var i = 0; i < 1000000; i++)
+                {
+                    try
+                    {
+                        Span<byte> bytes = Encoding.UTF8.GetBytes(i.ToString());
+                        Span<byte> key = new byte[bytes.Length + 2];
 
-            //        //Console.WriteLine(Encoding.UTF8.GetString(value.Values));
+                        key[0] = (byte)DataValueType.String;
+                        key[1] = (byte)bytes.Length;
 
-            //        str.Add(BitConverter.ToInt32(value.Values).ToString());
-            //    }
-            //    catch (Exception e)
-            //    {
-            //        Console.WriteLine("err" + i);
-            //    }
-            //}
-            //Console.WriteLine(str.Count + "_");
-            //tx.Dispose();
-            //st.Stop();
-            //Console.WriteLine(st.ElapsedMilliseconds * 1.0 / 1000000);
-            //Console.WriteLine(st.ElapsedMilliseconds * 1.0);
+                        bytes.CopyTo(key.Slice(2));
+
+                        var value = tree.GetValue(tx, new TreeNodeDataSlice(key, TreeNodeDataSliceType.Key));
+
+                    }
+                    catch (Exception e)
+                    {
+                        err.Add(i.ToString());
+                    }
+                }
+
+                stop.Stop();
+                Console.WriteLine(stop.ElapsedMilliseconds);
+
+                Console.WriteLine(err.Count);
+                Console.WriteLine(tree._root.PageNumber);
+            }
+
+            tx.Commit();
+            file.Sync();
         }
     }
 }

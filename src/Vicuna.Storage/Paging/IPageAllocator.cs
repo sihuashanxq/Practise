@@ -4,9 +4,9 @@ namespace Vicuna.Storage.Paging
 {
     public interface IPageAllocator
     {
-        PageIdentity Allocate();
+        PageNumberInfo Allocate();
 
-        PageIdentity[] Allocate(uint count);
+        PageNumberInfo[] Allocate(uint count);
 
         void FreePage(long pageNumber);
 

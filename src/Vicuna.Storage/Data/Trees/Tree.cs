@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
 using Vicuna.Storage.Extensions;
 using Vicuna.Storage.Paging;
 using Vicuna.Storage.Transactions;
@@ -8,11 +7,25 @@ namespace Vicuna.Storage.Data.Trees
 {
     public class Tree
     {
+        public int Id { get; }
+
+        public TreeStateInfo State { get; }
+
         public TreePage _root;
 
         private readonly bool _isUnique = false;
 
         public const ushort MaxPageDataSize = (Constants.PageSize - Constants.PageHeaderSize) / 2 - TreeNodeHeader.SizeOf - TreeNodeTransactionHeader.SizeOf;
+
+        public Tree()
+        {
+            State = new TreeStateInfo(new TreeRootHeader());
+        }
+
+        public Tree(TreeRootHeader header)
+        {
+            State = new TreeStateInfo(header);
+        }
 
         public void Init(ILowLevelTransaction tx)
         {
@@ -24,12 +37,12 @@ namespace Vicuna.Storage.Data.Trees
 
         public TreeCursor Get(ILowLevelTransaction tx, TreeNodeDataSlice key)
         {
-            return BuildCursorForKey(tx, key);
+            return BuildCursor(tx, key);
         }
 
         public TreeNodeDataSlice GetValue(ILowLevelTransaction tx, TreeNodeDataSlice key)
         {
-            var cursor = BuildCursorForKey(tx, key);
+            var cursor = BuildCursor(tx, key);
             if (cursor != null && cursor.Entry != null && cursor.Entry.Page != null)
             {
                 cursor.Entry.Search(key);
@@ -42,15 +55,8 @@ namespace Vicuna.Storage.Data.Trees
 
         public unsafe void Insert(ILowLevelTransaction tx, TreeNodeDataEntry data)
         {
-            Init(tx);
-
-            var cursor = BuildCursorForKey(tx, data.Key);
-            if (!cursor.Entry.Page.IsLeaf)
-            {
-                throw new InvalidOperationException("not a leaf page!");
-            }
-
-            var match = SearchForModifyKey(cursor.Entry, data.Key);
+            var cursor = BuildCursor(tx, data.Key);
+            var match = SearchForKey(cursor.Entry, data.Key);
             if (match == 0 && _isUnique)
             {
                 throw new InvalidCastException($"mulpti key");
@@ -98,7 +104,7 @@ namespace Vicuna.Storage.Data.Trees
         {
             var size = data.Key.Size;
             var dataSize = data.Value.Size;
-            var overflowPages = AllocateOverflows(tx, entry.Header.PagerId, dataSize);
+            var overflowPages = AllocateOverflows(tx, dataSize);
 
             for (var i = 0; i < overflowPages.Length; i++)
             {
@@ -128,30 +134,6 @@ namespace Vicuna.Storage.Data.Trees
             }
 
             entry.InsertPageRefNode(entry.LastMatchIndex, pos, data.Key, overflowPages[0].Header.PageNumber);
-        }
-
-        public OverflowPage[] AllocateOverflows(ILowLevelTransaction tx, int pagerId, int dataSize)
-        {
-            var count = dataSize % OverflowPage.Capacity == 0
-               ? dataSize / OverflowPage.Capacity
-               : dataSize / OverflowPage.Capacity + 1;
-
-            var identities = tx.AllocatePage(pagerId, (uint)count);
-            var overflowPages = new OverflowPage[count];
-
-            for (var i = 0; i < identities.Count; i++)
-            {
-                if (i == 0)
-                {
-                    overflowPages[i] = tx.ModifyPage(identities[i]).AsOverflow();
-                    continue;
-                }
-
-                overflowPages[i] = tx.ModifyPage(identities[i]).AsOverflow();
-                overflowPages[i - 1].Header.NextPageNumber = overflowPages[i].Header.PageNumber;
-            }
-
-            return overflowPages;
         }
 
         public unsafe int Balance(ILowLevelTransaction tx, TreePageEntry entry, TreeNodeDataSlice key, int midIndex)
@@ -253,8 +235,13 @@ namespace Vicuna.Storage.Data.Trees
             parent.Page.InsertPageRefNode(index, pos, key, curEntry.Header.PageNumber);
         }
 
-        private TreeCursor BuildCursorForKey(ILowLevelTransaction tx, TreeNodeDataSlice key)
+        private TreeCursor BuildCursor(ILowLevelTransaction tx, TreeNodeDataSlice key)
         {
+            if (_root == null)
+            {
+                _root = tx.GetPage(0, 0).AsTree();
+            }
+
             var entry = new TreePageEntry(_root, 0, null);
 
             while (entry.SearchPageIfBranch(tx, key, out var page))
@@ -265,7 +252,7 @@ namespace Vicuna.Storage.Data.Trees
             return new TreeCursor(new Memory<byte>(key.Data.ToArray()), tx, entry);
         }
 
-        private int SearchForModifyKey(TreePageEntry entry, TreeNodeDataSlice key)
+        private int SearchForKey(TreePageEntry entry, TreeNodeDataSlice key)
         {
             entry.Search(key);
 
@@ -291,27 +278,43 @@ namespace Vicuna.Storage.Data.Trees
             entry.Page = newPage;
             entry.LastMatch = lastMatch;
             entry.LastMatchIndex = lastMatchIndex;
+
+            State.OnChanged(entry.Page, TreePageChangeFlags.Modify);
             return true;
         }
 
         private unsafe TreePageEntry AllocateEntry(ILowLevelTransaction tx, TreeNodeFlags nodeFlags, TreePageEntry parent, int index)
         {
-            var identity = tx.AllocatePage(0);
-            var page = tx.ModifyPage(identity);
-            var treePage = page.AsTree();
+            var page = tx.AllocateTrees(Id, 1)[0];
 
-            ref var header = ref treePage.Header;
+            ref var header = ref page.Header;
 
             header.ItemCount = 0;
             header.Flags = PageHeaderFlags.Tree;
             header.NodeFlags = nodeFlags;
-            header.PagerId = identity.PagerId;
-            header.PageNumber = identity.PageNumber;
-            header.UsedLength = Constants.PageHeaderSize;
             header.Low = Constants.PageHeaderSize;
             header.Upper = Constants.PageSize;
+            header.UsedLength = Constants.PageHeaderSize;
 
-            return new TreePageEntry(treePage, index, parent);
+            State.OnChanged(page, TreePageChangeFlags.New);
+
+            return new TreePageEntry(page, index, parent);
+        }
+
+        private OverflowPage[] AllocateOverflows(ILowLevelTransaction tx, int dataSize)
+        {
+            var count = dataSize % OverflowPage.Capacity == 0
+               ? dataSize / OverflowPage.Capacity
+               : dataSize / OverflowPage.Capacity + 1;
+
+            var overflows = tx.AllocateOverflows(Id, (uint)count);
+
+            foreach (var overflow in overflows)
+            {
+                State.OnChanged(overflow, TreePageChangeFlags.New);
+            }
+
+            return overflows;
         }
     }
 }

@@ -1,45 +1,19 @@
-﻿namespace Vicuna.Storage
+﻿using Vicuna.Storage.Paging;
+
+namespace Vicuna.Storage
 {
     public static class Constants
     {
-        public const long NullPageId = -1;
+        public const int FixedPagerIdOffset = 0 + sizeof(PageHeaderFlags);
 
-        public const ushort ByteSize = sizeof(byte);
+        public const int FixedPageFlagsOffset = 0;
 
-        public const ushort BoolSize = sizeof(bool);
-
-        public const ushort CharSize = sizeof(char);
-
-        public const ushort ShortSize = sizeof(short);
-
-        public const ushort IntSize = sizeof(int);
-
-        public const ushort LongSize = sizeof(long);
-
-        public const ushort FloatSize = sizeof(float);
-
-        public const ushort DoubleSize = sizeof(double);
+        public const int FixedPageNumberOffset = 0 + sizeof(PageHeaderFlags) + sizeof(int);
 
         public const int Kb = 1024;
 
         public const int PageSize = Kb * 16;
 
         public const int PageHeaderSize = 96;
-
-        public const long InitFileSize = Kb * Kb * Kb * 10L;
-
-        public const int SlicePageCount = Kb;
-
-        public const int StorageSliceSize = SlicePageCount * PageSize;
-
-        public const int StorageSliceDefaultUsedLength = PageSize + PageHeaderSize * (SlicePageCount - 1);
-
-        public const int StorageSliceDefaultFreeLength = StorageSliceSize - StorageSliceDefaultUsedLength;
-
-        public const ushort MinFreeSlotSize = 32;
-
-        public const ushort MinPaddingSize = 0x08;
-
-        public const double DefaultPaddingRate = 1.1;
     }
 }

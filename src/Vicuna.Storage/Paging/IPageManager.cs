@@ -6,37 +6,37 @@ namespace Vicuna.Storage.Paging
     {
         /// <summary>
         /// </summary>
-        /// <param name="token"></param>
+        /// <param name="storeId"></param>
         /// <returns></returns>
-        PageIdentity Allocate(int token);
+        PageNumberInfo Allocate(int storeId);
 
         /// <summary>
         /// </summary>
-        /// <param name="token"></param>
+        /// <param name="storeId"></param>
         /// <param name="count"></param>
         /// <returns></returns>
-        PageIdentity[] Allocate(int token, uint count);
+        PageNumberInfo[] Allocate(int storeId, uint count);
 
         /// <summary>
         /// </summary>
         /// <param name="pages"></param>
-        void FreePage(PageIdentity page);
+        void FreePage(PageNumberInfo number);
 
         /// <summary>
         /// </summary>
         /// <param name="pages"></param>
-        void FreePage(IEnumerable<PageIdentity> pages);
+        void FreePage(IEnumerable<PageNumberInfo> pages);
 
         /// <summary>
         /// </summary>
         /// <param name="pageIdentity"></param>
         /// <returns></returns>
-        Page GetPage(PageIdentity identity);
+        Page GetPage(PageNumberInfo number);
 
         /// <summary>
         /// </summary>
-        /// <param name="identity"></param>
+        /// <param name="number"></param>
         /// <param name="data"></param>
-        void SetPage(PageIdentity identity, Page page);
+        void SetPage(PageNumberInfo number, Page page);
     }
 }

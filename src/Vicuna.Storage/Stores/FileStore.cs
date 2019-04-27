@@ -7,6 +7,8 @@ namespace Vicuna.Storage.Stores.Impl
     {
         private FileStream _file;
 
+        public int Id { get; } = 0;
+
         public string Name => _file.Name;
 
         public long Length => _file.Length;

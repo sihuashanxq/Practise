@@ -9,6 +9,10 @@ namespace Vicuna.Storage.Paging
 
         public int Size => Data.Length;
 
+        public ref int StoreId => ref Read<int>(Constants.FixedPagerIdOffset);
+
+        public ref long PageNumber => ref Read<long>(Constants.FixedPageNumberOffset);
+
         public PageAccessor()
         {
             Data = new byte[Constants.PageSize];

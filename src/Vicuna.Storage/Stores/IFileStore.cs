@@ -1,11 +1,11 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Text;
 
 namespace Vicuna.Storage.Stores
 {
     public interface IFileStore : IDisposable
     {
+        int Id { get; }
+
         string Name { get; }
 
         long Length { get; }

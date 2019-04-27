@@ -4,7 +4,7 @@
     {
         uint Limit { get; }
 
-        Page GetEntry(PageIdentity page);
+        Page GetEntry(PageNumberInfo page);
 
         void AddEntry(PageEntry entry);
 

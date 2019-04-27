@@ -1,7 +1,4 @@
-﻿using Vicuna.Storage.Transactions.Impl;
-using Vicuna.Storage.Paging;
-using System.Collections.Generic;
-using Vicuna.Storage.Data.Trees;
+﻿using Vicuna.Storage.Paging;
 
 namespace Vicuna.Storage.Transactions
 {
@@ -13,14 +10,12 @@ namespace Vicuna.Storage.Transactions
 
         TransactionState State { get; }
 
-        Page GetPage(int pagerId, long pageNumber);
+        Page GetPage(PageNumberInfo number);
 
-        Page GetPage(PageIdentity identity);
+        Page ModifyPage(PageNumberInfo number);
 
-        Page ModifyPage(PageIdentity identity);
+        Page AllocatePage(int storeId);
 
-        PageIdentity AllocatePage(int pagerId);
-
-        List<PageIdentity> AllocatePage(int pagerId, uint count);
+        Page[] AllocatePage(int storeId, uint count);
     }
 }

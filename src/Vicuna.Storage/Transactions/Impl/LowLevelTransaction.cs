@@ -20,11 +20,11 @@ namespace Vicuna.Storage.Transactions.Impl
 
         protected internal IPageManager PageManager { get; }
 
-        protected internal HashSet<PageIdentity> AllocatedPages { get; }
+        protected internal HashSet<PageNumberInfo> AllocatedPages { get; }
 
-        protected internal ConcurrentDictionary<int, List<PageIdentity>> UnUsedPages { get; }
+        protected internal ConcurrentDictionary<PageNumberInfo, Page> ModifiedPages { get; }
 
-        protected internal ConcurrentDictionary<PageIdentity, Page> ModifiedPages { get; }
+        protected internal ConcurrentDictionary<int, List<PageNumberInfo>> UnUsedPages { get; }
 
         Transactions.TransactionState ILowLevelTransaction.State => throw new NotImplementedException();
 
@@ -33,34 +33,39 @@ namespace Vicuna.Storage.Transactions.Impl
             _syncRoot = new object();
             Pool = pageBufferPool;
             PageManager = pageManager;
-            AllocatedPages = new HashSet<PageIdentity>();
-            UnUsedPages = new ConcurrentDictionary<int, List<PageIdentity>>();
-            ModifiedPages = new ConcurrentDictionary<PageIdentity, Page>();
+            AllocatedPages = new HashSet<PageNumberInfo>();
+            UnUsedPages = new ConcurrentDictionary<int, List<PageNumberInfo>>();
+            ModifiedPages = new ConcurrentDictionary<PageNumberInfo, Page>();
         }
 
-        public PageIdentity AllocatePage(int token)
+        public Page AllocatePage(int token)
         {
             return AllocatePage(token, 1).FirstOrDefault();
         }
 
-        public List<PageIdentity> AllocatePage(int token, uint count)
+        public Page[] AllocatePage(int token, uint count)
         {
-            var unusedPages = AllocateWithUnUsedPages(token, (int)count);
-            if (unusedPages.Count == count)
+            var pageIdentities = AllocateUnUsedPages(token, (int)count);
+            if (pageIdentities.Count < (int)count)
             {
-                return unusedPages;
+                var newPages = AllocateNewPages(token, (int)count - pageIdentities.Count);
+                if (newPages != null)
+                {
+                    pageIdentities.AddRange(newPages);
+                }
             }
 
-            var newPages = AllocateWithNewPages(token, (int)count - unusedPages.Count);
-            if (newPages != null)
+            var pages = new Page[count];
+
+            for (var i = 0; i < count; i++)
             {
-                unusedPages.AddRange(newPages);
+                pages[i] = ModifyPage(pageIdentities[i]);
             }
 
-            return unusedPages;
+            return pages;
         }
 
-        public IEnumerable<PageIdentity> AllocateWithNewPages(int token, int count)
+        public IEnumerable<PageNumberInfo> AllocateNewPages(int token, int count)
         {
             var newPages = PageManager.Allocate(token, (uint)count);
             if (newPages != null)
@@ -71,11 +76,11 @@ namespace Vicuna.Storage.Transactions.Impl
             return newPages;
         }
 
-        public List<PageIdentity> AllocateWithUnUsedPages(int token, int count)
+        public List<PageNumberInfo> AllocateUnUsedPages(int token, int count)
         {
             if (!UnUsedPages.TryGetValue(token, out var list))
             {
-                return new List<PageIdentity>();
+                return new List<PageNumberInfo>();
             }
 
             if (list.Count > count)
@@ -91,25 +96,25 @@ namespace Vicuna.Storage.Transactions.Impl
             return pages;
         }
 
-        public Page GetPage(PageIdentity identity)
+        public Page GetPage(PageNumberInfo number)
         {
-            if (ModifiedPages.TryGetValue(identity, out var dirtyPage))
+            if (ModifiedPages.TryGetValue(number, out var dirtyPage))
             {
                 return dirtyPage;
             }
 
-            if (AllocatedPages.Contains(identity))
+            if (AllocatedPages.Contains(number))
             {
-                return CreatePage(identity);
+                return CreatePage(number);
             }
 
-            var poolPage = Pool.GetEntry(identity);
+            var poolPage = Pool.GetEntry(number);
             if (poolPage != null)
             {
                 return poolPage;
             }
 
-            var page = PageManager.GetPage(identity);
+            var page = PageManager.GetPage(number);
             if (page == null)
             {
                 throw null;
@@ -120,24 +125,19 @@ namespace Vicuna.Storage.Transactions.Impl
             return page;
         }
 
-        public Page GetPage(int pagerId, long pageNumber)
+        public Page ModifyPage(PageNumberInfo number)
         {
-            return GetPage(new PageIdentity(pagerId, pageNumber));
-        }
-
-        public Page ModifyPage(PageIdentity identity)
-        {
-            if (ModifiedPages.TryGetValue(identity, out var page))
+            if (ModifiedPages.TryGetValue(number, out var page))
             {
                 return page;
             }
 
-            var oldPage = GetPage(identity);
+            var oldPage = GetPage(number);
             var newPage = ModifyPage(oldPage);
 
-            if (!ModifiedPages.TryAdd(identity, newPage))
+            if (!ModifiedPages.TryAdd(number, newPage))
             {
-                throw new InvalidOperationException($"modify page {identity.PageNumber} failed!");
+                throw new InvalidOperationException($"modify page {number.PageNumber} failed!");
             }
 
             return newPage;
@@ -154,13 +154,13 @@ namespace Vicuna.Storage.Transactions.Impl
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        protected internal Page CreatePage(PageIdentity identity)
+        protected internal Page CreatePage(PageNumberInfo number)
         {
             var page = new Page();
             ref var header = ref page.PageHeader;
 
-            header.PagerId = identity.PagerId;
-            header.PageNumber = identity.PageNumber;
+            header.PagerId = number.StoreId;
+            header.PageNumber = number.PageNumber;
 
             return page;
         }
@@ -171,6 +171,11 @@ namespace Vicuna.Storage.Transactions.Impl
             {
                 CheckTransactionState();
                 State = TransactionState.Commited;
+
+                foreach (var item in ModifiedPages)
+                {
+                    PageManager.SetPage(item.Key, item.Value);
+                }
             }
         }
 

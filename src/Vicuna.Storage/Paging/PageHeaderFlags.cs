@@ -1,6 +1,6 @@
 ﻿namespace Vicuna.Storage.Paging
 {
-    public enum PageHeaderFlags
+    public enum PageHeaderFlags : byte
     {
         Tree,
 

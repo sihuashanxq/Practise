@@ -8,20 +8,20 @@ namespace Vicuna.Storage.Paging.Impl
     {
         private readonly IPageManager _pageManager;
 
-        private readonly ConcurrentDictionary<PageIdentity, PageEntry> _buffers;
+        private readonly ConcurrentDictionary<PageNumberInfo, PageEntry> _buffers;
 
         public virtual uint Limit { get; }
 
-        public Action<PageIdentity, PageEntry> OnCleaning { get; set; }
+        public Action<PageNumberInfo, PageEntry> OnCleaning { get; set; }
 
         public PageBufferPool()
         {
-            _buffers = new ConcurrentDictionary<PageIdentity, PageEntry>();
+            _buffers = new ConcurrentDictionary<PageNumberInfo, PageEntry>();
         }
 
-        public virtual Page GetEntry(PageIdentity identity)
+        public virtual Page GetEntry(PageNumberInfo number)
         {
-            if (_buffers.TryGetValue(identity, out var bufferEntry))
+            if (_buffers.TryGetValue(number, out var bufferEntry))
             {
                 Interlocked.Add(ref bufferEntry.Version, 1);
                 return bufferEntry.Page;
@@ -32,7 +32,7 @@ namespace Vicuna.Storage.Paging.Impl
 
         public virtual void AddEntry(PageEntry entry)
         {
-            _buffers.AddOrUpdate(new PageIdentity(entry.Page.PageHeader.PagerId, entry.Page.PageHeader.PageNumber), entry, (k, v) => entry);
+            _buffers.AddOrUpdate(new PageNumberInfo(entry.Page.PageHeader.PagerId, entry.Page.PageHeader.PageNumber), entry, (k, v) => entry);
         }
 
         public void AddEntry(Page page, PageEntryState state)

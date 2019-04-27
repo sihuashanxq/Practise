@@ -6,7 +6,7 @@ namespace Vicuna.Storage.Paging.Impl
 {
     public class Pager : IPager
     {
-        public virtual int Id { get; }
+        public virtual int Id => Store.Id;
 
         public virtual object SyncRoot { get; }
 
@@ -14,9 +14,8 @@ namespace Vicuna.Storage.Paging.Impl
 
         public virtual long Count => Store.Length / Constants.PageSize;
 
-        public Pager(int id, IFileStore store)
+        public Pager(IFileStore store)
         {
-            Id = id;
             Store = store;
             SyncRoot = new object();
         }
@@ -53,19 +52,19 @@ namespace Vicuna.Storage.Paging.Impl
             Store.WriteBytes(pos, src);
         }
 
-        public virtual PageIdentity Allocate()
+        public virtual PageNumberInfo Allocate()
         {
-            return new PageIdentity(Id, AddPage(1));
+            return new PageNumberInfo(Id, AddPage(1));
         }
 
-        public virtual PageIdentity[] Allocate(uint count)
+        public virtual PageNumberInfo[] Allocate(uint count)
         {
             var start = AddPage(count);
-            var pages = new PageIdentity[count];
+            var pages = new PageNumberInfo[count];
 
             for (var i = 0; i < count; i++)
             {
-                pages[i] = new PageIdentity(Id, start + i);
+                pages[i] = new PageNumberInfo(Id, start + i);
             }
 
             return pages;

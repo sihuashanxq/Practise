@@ -1,28 +1,25 @@
 ﻿using System;
 using System.Collections.Generic;
-using Vicuna.Storage.Stores;
+using Vicuna.Storage.Paging;
 
-namespace Vicuna.Storage.Paging.Impl
+namespace Vicuna.Storage.Stores.Paging
 {
-    public class Pager : IPager
+    public class StorePager : IStorePager
     {
-        public virtual int Id => Store.Id;
-
-        public virtual object SyncRoot { get; }
+        public virtual object SyncRoot => this;
 
         public virtual IFileStore Store { get; }
 
         public virtual long Count => Store.Length / Constants.PageSize;
 
-        public Pager(IFileStore store)
+        public StorePager(IFileStore store)
         {
             Store = store;
-            SyncRoot = new object();
         }
 
         public virtual long AddPage(uint count)
         {
-            lock (SyncRoot)
+            lock (Store.SyncRoot)
             {
                 var old = Count;
 
@@ -32,29 +29,24 @@ namespace Vicuna.Storage.Paging.Impl
             }
         }
 
-        public virtual void FreePage(long pageNumber)
+        public virtual void Free(long pageNumber)
         {
 
         }
 
         public virtual byte[] GetPage(long pageNumber)
         {
-            var pos = pageNumber * Constants.PageSize;
-            var len = Constants.PageSize;
-
-            return Store.ReadBytes(pos, len);
+            return Store.Read(pageNumber * Constants.PageSize, Constants.PageSize);
         }
 
         public virtual void SetPage(long pageNumber, byte[] src)
         {
-            var pos = pageNumber * Constants.PageSize;
-
-            Store.WriteBytes(pos, src);
+            Store.Write(pageNumber * Constants.PageSize, src);
         }
 
         public virtual PageNumberInfo Allocate()
         {
-            return new PageNumberInfo(Id, AddPage(1));
+            return new PageNumberInfo(Store.Id, AddPage(1));
         }
 
         public virtual PageNumberInfo[] Allocate(uint count)
@@ -64,13 +56,13 @@ namespace Vicuna.Storage.Paging.Impl
 
             for (var i = 0; i < count; i++)
             {
-                pages[i] = new PageNumberInfo(Id, start + i);
+                pages[i] = new PageNumberInfo(Store.Id, start + i);
             }
 
             return pages;
         }
 
-        public virtual void FreePage(IEnumerable<long> pageNumbers)
+        public virtual void Free(IEnumerable<long> pageNumbers)
         {
             if (pageNumbers == null)
             {
@@ -79,7 +71,7 @@ namespace Vicuna.Storage.Paging.Impl
 
             foreach (var item in pageNumbers)
             {
-                FreePage(item);
+                Free(item);
             }
         }
 

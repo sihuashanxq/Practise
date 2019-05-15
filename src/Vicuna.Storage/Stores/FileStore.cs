@@ -5,13 +5,15 @@ namespace Vicuna.Storage.Stores.Impl
 {
     public class FileStore : IFileStore
     {
+        private int _id;
+
         private FileStream _file;
 
-        public int Id { get; } = 0;
-
-        public string Name => _file.Name;
+        public int Id => _id;
 
         public long Length => _file.Length;
+
+        public object SyncRoot => this;
 
         public FileStore(string path)
         {
@@ -30,79 +32,98 @@ namespace Vicuna.Storage.Stores.Impl
 
         public void Sync()
         {
-            _file.Flush(true);
+            lock (SyncRoot)
+            {
+                _file.Flush(true);
+            }
         }
 
-        public void Flush()
+        public void SetLength(long len)
         {
-            _file.Flush(false);
+            lock (SyncRoot)
+            {
+                _file.SetLength(len);
+            }
         }
 
-        public void SetLength(long length)
-        {
-            _file.SetLength(length);
-        }
-
-        public byte[] ReadBytes(long pos, int len)
+        public byte[] Read(long pos, int len)
         {
             if (pos < 0 || pos + len > Length)
             {
                 throw new ArgumentOutOfRangeException(nameof(pos));
             }
 
-            var dst = new byte[len];
+            var data = new byte[len];
 
             _file.Seek(pos, SeekOrigin.Begin);
-            _file.Read(dst);
+            _file.Read(data);
 
-            return dst;
+            return data;
         }
 
-        public void ReadBytes(long pos, Span<byte> dst)
+        public void Read(long pos, Span<byte> data)
         {
-            if (pos < 0 || pos + dst.Length > Length)
+            if (pos < 0 || pos + data.Length > Length)
             {
                 throw new ArgumentOutOfRangeException(nameof(pos));
             }
 
             _file.Seek(pos, SeekOrigin.Begin);
-            _file.Read(dst);
+            _file.Read(data);
         }
 
-        public void WriteBytes(long pos, Span<byte> src)
+        public void Write(long pos, Span<byte> data)
         {
-            if (src == null)
+            if (data == null)
             {
-                throw new ArgumentNullException(nameof(src));
+                throw new ArgumentNullException(nameof(data));
+            }
+
+            if (pos + data.Length > Length)
+            {
+                throw new ArgumentOutOfRangeException(nameof(pos));
             }
 
             _file.Seek(pos, SeekOrigin.Begin);
-            _file.Write(src);
+            _file.Write(data);
         }
 
-        public void WriteBytes(long pos, byte[] src)
+        public void Write(long pos, byte[] data)
         {
-            if (src == null)
+            if (data == null)
             {
-                throw new ArgumentNullException(nameof(src));
+                throw new ArgumentNullException(nameof(data));
             }
 
-            WriteBytes(pos, src.AsSpan());
+            if (pos + data.Length > Length)
+            {
+                throw new ArgumentOutOfRangeException(nameof(pos));
+            }
+
+            Write(pos, data.AsSpan());
         }
 
-        public void WriteBytes(long pos, byte[] src, int offset, int len)
+        public void Write(long pos, byte[] data, int offset, int len)
         {
-            if (src == null)
+            if (data == null)
             {
-                throw new ArgumentNullException(nameof(src));
+                throw new ArgumentNullException(nameof(data));
             }
 
-            WriteBytes(pos, src.AsSpan().Slice(offset, len));
+            if (pos + data.Length > Length)
+            {
+                throw new ArgumentOutOfRangeException(nameof(pos));
+            }
+
+            Write(pos, data.AsSpan().Slice(offset, len));
         }
 
         public void Dispose()
         {
-            Sync();
+            lock (SyncRoot)
+            {
+                Sync();
+            }
         }
     }
 }

@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
-using System.Runtime.InteropServices;
 using Vicuna.Storage.Extensions;
 using Vicuna.Storage.Paging;
 using Vicuna.Storage.Transactions;
@@ -29,12 +28,12 @@ namespace Vicuna.Storage.Data.Trees
 
         public int LastMatchIndex { get; set; }
 
-        public TreeNodeDataSlice MinKey
+        public Span<byte> MinKey
         {
             get => GetNodeKey(0);
         }
 
-        public TreeNodeDataSlice MaxKey
+        public Span<byte> MaxKey
         {
             get => GetNodeKey(Header.ItemCount - (IsLeaf ? 1 : 2));
         }
@@ -79,14 +78,14 @@ namespace Vicuna.Storage.Data.Trees
             if (index <= Header.ItemCount - 1)
             {
                 //move index region
-                var moveStart = GetIndexPos(index);
-                var moveSize = Header.Low - moveStart;
+                var mStart = GetIndexPos(index);
+                var mSize = Header.Low - mStart;
 
-                var from = Slice(moveStart, moveSize);
-                var to = Slice(moveStart + sizeof(ushort), moveSize);
+                var from = Slice(mStart, mSize);
+                var to = Slice(mStart + sizeof(ushort), mSize);
 
                 from.CopyTo(to);
-                Write(moveStart, (ushort)upper);
+                Write(mStart, (ushort)upper);
             }
             else
             {
@@ -104,53 +103,53 @@ namespace Vicuna.Storage.Data.Trees
             return true;
         }
 
-        public void InsertDataNode(int index, ushort pos, TreeNodeDataEntry entry, long txNumber)
+        public void AddEntry(int index, ushort pos, Span<byte> k, Span<byte> v, long txNumber)
         {
             ref var node = ref GetNodeHeader(pos);
-            ref var tx = ref GetNodeTransactionHeader((ushort)(pos + entry.Key.Size + TreeNodeHeader.SizeOf));
+            ref var tx = ref GetNodeTransactionHeader((ushort)(pos + k.Length + TreeNodeHeader.SizeOf));
 
-            var key = Slice(pos + TreeNodeHeader.SizeOf, entry.Key.Size);
-            var value = Slice(pos + TreeNodeHeader.SizeOf + TreeNodeTransactionHeader.SizeOf + entry.Key.Size, entry.Value.Size);
+            var key = Slice(pos + TreeNodeHeader.SizeOf, k.Length);
+            var value = Slice(pos + TreeNodeHeader.SizeOf + TreeNodeTransactionHeader.SizeOf + k.Length, v.Length);
 
-            node.KeySize = (ushort)entry.Key.Size;
-            node.DataSize = (uint)entry.Value.Size;
+            node.KeySize = (ushort)k.Length;
+            node.DataSize = (uint)v.Length;
             node.IsDeleted = false;
             node.NodeFlags = TreeNodeHeaderFlags.Data;
 
             tx.TransactionNumber = txNumber;
             tx.TransactionRollbackNumber = -1;
 
-            entry.Key.CopyTo(key);
-            entry.Value.CopyTo(value);
+            k.CopyTo(key);
+            v.CopyTo(value);
         }
 
-        public void InsertDataRefNode(int index, ushort pos, TreeNodeDataEntry entry)
+        public void AddEntryRef(int index, ushort pos, Span<byte> k, Span<byte> v)
         {
             ref var node = ref GetNodeHeader(pos);
 
-            var key = Slice(pos + TreeNodeHeader.SizeOf, entry.Key.Size);
-            var value = Slice(pos + TreeNodeHeader.SizeOf + entry.Key.Size, entry.Value.Size);
+            var key = Slice(pos + TreeNodeHeader.SizeOf, k.Length);
+            var value = Slice(pos + TreeNodeHeader.SizeOf + k.Length, v.Length);
 
-            node.KeySize = (ushort)entry.Key.Size;
-            node.DataSize = (uint)entry.Value.Size;
+            node.KeySize = (ushort)k.Length;
+            node.DataSize = (uint)v.Length;
             node.IsDeleted = false;
             node.NodeFlags = TreeNodeHeaderFlags.Data;
 
-            entry.Key.CopyTo(key);
-            entry.Value.CopyTo(value);
+            k.CopyTo(key);
+            v.CopyTo(value);
         }
 
-        public void InsertPageRefNode(int index, ushort pos, TreeNodeDataSlice keySlice, long pageNumber)
+        public void AddEntryPageRef(int index, ushort pos, Span<byte> key, long pageNumber)
         {
             ref var node = ref GetNodeHeader(pos);
-            var key = Slice(pos + TreeNodeHeader.SizeOf, keySlice.Size);
+            var data = Slice(pos + TreeNodeHeader.SizeOf, key.Length);
 
-            node.KeySize = (ushort)keySlice.Size;
+            node.KeySize = (ushort)key.Length;
             node.PageNumber = pageNumber;
             node.IsDeleted = false;
             node.NodeFlags = TreeNodeHeaderFlags.PageRef;
 
-            keySlice.CopyTo(key);
+            key.CopyTo(data);
         }
 
         public void RemoveNode(int index, long txNumber, long txLogNumber)
@@ -222,37 +221,45 @@ namespace Vicuna.Storage.Data.Trees
             return ref Read<TreeNodeTransactionHeader>(txPos, TreeNodeTransactionHeader.SizeOf);
         }
 
-        public TreeNodeDataSlice GetNodeKey(int index)
+        public Span<byte> GetNodeKey(int index)
         {
             var pos = GetNodePos(index);
-            var node = GetNodeHeader(pos);
-            var keyPos = GetNodeKeyPos(ref node, pos);
-            var key = Slice(keyPos, node.KeySize);
-            if (key.Length == 0)
+            if (pos >= Constants.PageSize)
             {
-                throw new InvalidOperationException($"the node data slice is empty,index:{index}!");
+                throw new IndexOutOfRangeException(nameof(pos));
             }
 
-            return new TreeNodeDataSlice(key, TreeNodeDataSliceType.Key);
+            var header = GetNodeHeader(pos);
+            var offset = GetNodeKeyPos(ref header, pos);
+            if (offset + header.KeySize > Constants.PageSize)
+            {
+                throw new IndexOutOfRangeException(nameof(offset));
+            }
+
+            return Slice(offset, header.KeySize);
         }
 
-        public TreeNodeDataSlice GetNodeData(int index)
+        public Span<byte> GetNodeData(int index)
         {
             var pos = GetNodePos(index);
-            var node = GetNodeHeader(pos);
-            if (node.NodeFlags == TreeNodeHeaderFlags.PageRef)
+            if (pos >= Constants.PageSize)
             {
-                throw new InvalidOperationException($"node flags :{node.NodeFlags} no data:{index}");
+                throw new IndexOutOfRangeException(nameof(pos));
             }
 
-            var dataPos = GetNodeDataPos(ref node, pos);
-            var data = Slice(dataPos, (int)node.DataSize);
-            if (data.Length == 0)
+            var header = GetNodeHeader(pos);
+            if (header.NodeFlags == TreeNodeHeaderFlags.PageRef)
             {
-                throw new InvalidOperationException($"the node data slice is empty,index:{index}!");
+                throw new InvalidOperationException($"node flags :{header.NodeFlags} no data:{index}");
             }
 
-            return new TreeNodeDataSlice(data, TreeNodeDataSliceType.Value);
+            var offset = GetNodeDataPos(ref header, pos);
+            if (offset + header.DataSize > Constants.PageSize)
+            {
+                throw new IndexOutOfRangeException(nameof(offset));
+            }
+
+            return Slice(offset, (int)header.DataSize);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
@@ -285,7 +292,6 @@ namespace Vicuna.Storage.Data.Trees
             }
         }
 
-
         private void Compact()
         {
             var count = Header.ItemCount;
@@ -317,7 +323,7 @@ namespace Vicuna.Storage.Data.Trees
             Header.Upper += (ushort)index;
         }
 
-        public void Search(TreeNodeDataSlice key)
+        public void Search(Span<byte> key)
         {
             var count = IsLeaf ? Header.ItemCount : Header.ItemCount - 1;
             if (count <= 0)
@@ -336,7 +342,7 @@ namespace Vicuna.Storage.Data.Trees
             BinarySearch(key, 0, count - 1);
         }
 
-        public bool SearchPageIfBranch(ILowLevelTransaction tx, TreeNodeDataSlice key, out TreePage page)
+        public bool SearchPageIfBranch(ILowLevelTransaction tx, Span<byte> key, out TreePage page)
         {
             if (IsLeaf)
             {
@@ -363,7 +369,7 @@ namespace Vicuna.Storage.Data.Trees
             return true;
         }
 
-        public void BinarySearch(TreeNodeDataSlice key, int first, int last)
+        public void BinarySearch(Span<byte> key, int first, int last)
         {
             while (first < last)
             {
@@ -399,7 +405,7 @@ namespace Vicuna.Storage.Data.Trees
             LastMatchIndex = last;
         }
 
-        private bool IsLessThanOrEqualMinKey(TreeNodeDataSlice key, int count)
+        private bool IsLessThanOrEqualMinKey(Span<byte> key, int count)
         {
             //<=first
             var flag = CompareTo(MinKey, key);
@@ -413,7 +419,7 @@ namespace Vicuna.Storage.Data.Trees
             return false;
         }
 
-        private bool IsMoreThanOrEqualMaxKey(TreeNodeDataSlice key, int count)
+        private bool IsMoreThanOrEqualMaxKey(Span<byte> key, int count)
         {
             //>=last 
             var flag = CompareTo(MaxKey, key);
@@ -531,11 +537,11 @@ namespace Vicuna.Storage.Data.Trees
             Array.Clear(Data, Constants.PageHeaderSize, Constants.PageSize - Constants.PageHeaderSize);
         }
 
-        public static int CompareTo(TreeNodeDataSlice left, TreeNodeDataSlice right)
+        public int CompareTo(Span<byte> left, Span<byte> right)
         {
             var index = 0;
 
-            while (index < left.Size)
+            while (index < left.Length)
             {
                 var match = 0;
                 var type = (DataValueType)left[index];
@@ -545,50 +551,50 @@ namespace Vicuna.Storage.Data.Trees
                 switch (type)
                 {
                     case DataValueType.Char:
-                        match = left.GetChar(index) - right.GetChar(index);
+                        match = GetChar(left, index) - GetChar(right, index);
                         index += sizeof(char);
                         break;
                     case DataValueType.Byte:
                     case DataValueType.Boolean:
-                        match = left.GetByte(index) - right.GetByte(index);
+                        match = GetByte(left, index) - GetByte(right, index);
                         index += sizeof(byte);
                         break;
                     case DataValueType.Int16:
-                        match = left.GetInt16(index) - right.GetInt16(index);
+                        match = GetInt16(left, index) - GetInt16(right, index);
                         index += sizeof(short);
                         break;
                     case DataValueType.Int32:
-                        match = left.GetInt32(index) - right.GetInt32(index);
+                        match = GetInt32(left, index) - GetInt32(right, index);
                         index += sizeof(int);
                         break;
                     case DataValueType.UInt16:
-                        match = left.GetUInt16(index) - right.GetUInt16(index);
+                        match = GetUInt16(left, index) - GetUInt16(right, index);
                         index += sizeof(ushort);
                         break;
                     case DataValueType.Int64:
                     case DataValueType.DateTime:
-                        match = left.GetInt64(index).CompareTo(right.GetInt64(index));
+                        match = GetInt64(left, index).CompareTo(GetInt64(right, index));
                         index += sizeof(long);
                         break;
                     case DataValueType.UInt32:
-                        match = left.GetUInt32(index).CompareTo(right.GetUInt32(index));
+                        match = GetUInt32(left, index).CompareTo(GetUInt32(right, index));
                         index += sizeof(uint);
                         break;
                     case DataValueType.UInt64:
-                        match = left.GetUInt64(index).CompareTo(right.GetUInt64(index));
+                        match = GetUInt64(left, index).CompareTo(GetUInt64(right, index));
                         index += sizeof(ulong);
                         break;
                     case DataValueType.Single:
-                        match = left.GetSingle(index).CompareTo(right.GetSingle(index));
+                        match = GetSingle(left, index).CompareTo(GetSingle(right, index));
                         index += sizeof(float);
                         break;
                     case DataValueType.Double:
-                        match = left.GetDouble(index).CompareTo(right.GetDouble(index));
+                        match = GetDouble(left, index).CompareTo(GetDouble(right, index));
                         index += sizeof(double);
                         break;
                     case DataValueType.String:
-                        var s1 = left.GetSpanString(index);
-                        var s2 = right.GetSpanString(index);
+                        var s1 = GetSpanString(left, index);
+                        var s2 = GetSpanString(right, index);
 
                         fixed (byte* p1 = s1, p2 = s2)
                         {
@@ -680,6 +686,136 @@ namespace Vicuna.Storage.Data.Trees
             return 0;
         }
 
+        public ref byte GetByte(Span<byte> data, int index)
+        {
+            if (index < 0 || index + sizeof(byte) > data.Length)
+            {
+                throw new ArgumentOutOfRangeException(nameof(index));
+            }
+
+            return ref data[index];
+        }
+
+        public ref char GetChar(Span<byte> data, int index)
+        {
+            if (index < 0 || index + sizeof(char) > data.Length)
+            {
+                throw new ArgumentOutOfRangeException(nameof(index));
+            }
+
+            return ref Unsafe.As<byte, char>(ref data[index]);
+        }
+
+        public ref short GetInt16(Span<byte> data, int index)
+        {
+            if (index < 0 || index + sizeof(short) > data.Length)
+            {
+                throw new ArgumentOutOfRangeException(nameof(index));
+            }
+
+            return ref Unsafe.As<byte, short>(ref data[index]);
+        }
+
+        public ref ushort GetUInt16(Span<byte> data, int index)
+        {
+            if (index < 0 || index + sizeof(ushort) > data.Length)
+            {
+                throw new ArgumentOutOfRangeException(nameof(index));
+            }
+
+            return ref Unsafe.As<byte, ushort>(ref data[index]);
+        }
+
+        public ref int GetInt32(Span<byte> data, int index)
+        {
+            if (index < 0 || index + sizeof(int) > data.Length)
+            {
+                throw new ArgumentOutOfRangeException(nameof(index));
+            }
+
+            return ref Unsafe.As<byte, int>(ref data[index]);
+        }
+
+        public ref uint GetUInt32(Span<byte> data, int index)
+        {
+            if (index < 0 || index + sizeof(uint) > data.Length)
+            {
+                throw new ArgumentOutOfRangeException(nameof(index));
+            }
+
+            return ref Unsafe.As<byte, uint>(ref data[index]);
+        }
+
+        public ref long GetInt64(Span<byte> data, int index)
+        {
+            if (index < 0 || index + sizeof(long) > data.Length)
+            {
+                throw new ArgumentOutOfRangeException(nameof(index));
+            }
+
+            return ref Unsafe.As<byte, long>(ref data[index]);
+        }
+
+        public ref ulong GetUInt64(Span<byte> data, int index)
+        {
+            if (index < 0 || index + sizeof(ulong) > data.Length)
+            {
+                throw new ArgumentOutOfRangeException(nameof(index));
+            }
+
+            return ref Unsafe.As<byte, ulong>(ref data[index]);
+        }
+
+        public ref float GetSingle(Span<byte> data, int index)
+        {
+            if (index < 0 || index + sizeof(float) > data.Length)
+            {
+                throw new ArgumentOutOfRangeException(nameof(index));
+            }
+
+            return ref Unsafe.As<byte, float>(ref data[index]);
+        }
+
+        public ref double GetDouble(Span<byte> data, int index)
+        {
+            if (index < 0 || index + sizeof(double) > data.Length)
+            {
+                throw new ArgumentOutOfRangeException(nameof(index));
+            }
+
+            return ref Unsafe.As<byte, double>(ref data[index]);
+        }
+
+        public string GetString(Span<byte> data, int index)
+        {
+            if (index < 0 || index + data[index] > data.Length)
+            {
+                throw new ArgumentOutOfRangeException(nameof(index));
+            }
+
+            return System.Text.Encoding.UTF8.GetString(data.Slice(index + 1, Data[index]));
+        }
+
+        public Span<byte> GetSpanString(Span<byte> data, int index)
+        {
+            if (index < 0 || index + data[index] > data.Length)
+            {
+                throw new ArgumentOutOfRangeException(nameof(index));
+            }
+
+            return data.Slice(index + 1, Data[index]);
+        }
+
+        public ref bool GetBoolean(Span<byte> data, int index)
+        {
+            if (index < 0 || index + sizeof(bool) > data.Length)
+            {
+                throw new ArgumentOutOfRangeException(nameof(index));
+            }
+
+            return ref Unsafe.As<byte, bool>(ref data[index]);
+        }
+
         public enum CopyNodeEntryType
         {
             SourcePageSpaceFirst,
@@ -696,9 +832,9 @@ namespace Vicuna.Storage.Data.Trees
                 for (var i = 0; i < Header.ItemCount - (IsBranch ? 1 : 0); i++)
                 {
                     var key = GetNodeKey(i);
-                    if (key.Size > 0)
+                    if (key.Length > 0)
                     {
-                        keys.Add(key.Data.ToArray());
+                        keys.Add(key.ToArray());
                     }
                     else
                     {
@@ -736,8 +872,8 @@ namespace Vicuna.Storage.Data.Trees
 
                 for (var i = 0; i < keys.Count - 1; i++)
                 {
-                    var key1 = new TreeNodeDataSlice(keys[i], TreeNodeDataSliceType.Key);
-                    var key2 = new TreeNodeDataSlice(keys[i + 1], TreeNodeDataSliceType.Key);
+                    Span<byte> key1 = (keys[i]);
+                    Span<byte> key2 = (keys[i + 1]);
                     if (CompareTo(key1, key2) > 0)
                     {
                         return false;
@@ -813,135 +949,6 @@ namespace Vicuna.Storage.Data.Trees
             return str;
         }
 
-        public ref byte GetByte(int index)
-        {
-            if (index < 0 || index + sizeof(byte) > Size)
-            {
-                throw new ArgumentOutOfRangeException(nameof(index));
-            }
-
-            return ref Data[index];
-        }
-
-        public ref char GetChar(int index)
-        {
-            if (index < 0 || index + sizeof(char) > Size)
-            {
-                throw new ArgumentOutOfRangeException(nameof(index));
-            }
-
-            return ref Unsafe.As<byte, char>(ref Data[index]);
-        }
-
-        public ref short GetInt16(int index)
-        {
-            if (index < 0 || index + sizeof(short) > Size)
-            {
-                throw new ArgumentOutOfRangeException(nameof(index));
-            }
-
-            return ref Unsafe.As<byte, short>(ref Data[index]);
-        }
-
-        public ref ushort GetUInt16(int index)
-        {
-            if (index < 0 || index + sizeof(ushort) > Size)
-            {
-                throw new ArgumentOutOfRangeException(nameof(index));
-            }
-
-            return ref Unsafe.As<byte, ushort>(ref Data[index]);
-        }
-
-        public ref int GetInt32(int index)
-        {
-            if (index < 0 || index + sizeof(int) > Size)
-            {
-                throw new ArgumentOutOfRangeException(nameof(index));
-            }
-
-            return ref Unsafe.As<byte, int>(ref Data[index]);
-        }
-
-        public ref uint GetUInt32(int index)
-        {
-            if (index < 0 || index + sizeof(uint) > Size)
-            {
-                throw new ArgumentOutOfRangeException(nameof(index));
-            }
-
-            return ref Unsafe.As<byte, uint>(ref Data[index]);
-        }
-
-        public ref long GetInt64(int index)
-        {
-            if (index < 0 || index + sizeof(long) > Size)
-            {
-                throw new ArgumentOutOfRangeException(nameof(index));
-            }
-
-            return ref Unsafe.As<byte, long>(ref Data[index]);
-        }
-
-        public ref ulong GetUInt64(int index)
-        {
-            if (index < 0 || index + sizeof(ulong) > Size)
-            {
-                throw new ArgumentOutOfRangeException(nameof(index));
-            }
-
-            return ref Unsafe.As<byte, ulong>(ref Data[index]);
-        }
-
-        public ref float GetSingle(int index)
-        {
-            if (index < 0 || index + sizeof(float) > Size)
-            {
-                throw new ArgumentOutOfRangeException(nameof(index));
-            }
-
-            return ref Unsafe.As<byte, float>(ref Data[index]);
-        }
-
-        public ref double GetDouble(int index)
-        {
-            if (index < 0 || index + sizeof(double) > Size)
-            {
-                throw new ArgumentOutOfRangeException(nameof(index));
-            }
-
-            return ref Unsafe.As<byte, double>(ref Data[index]);
-        }
-
-        public string GetString(int index)
-        {
-            if (index < 0 || index + Data[index] > Size)
-            {
-                throw new ArgumentOutOfRangeException(nameof(index));
-            }
-
-            return System.Text.Encoding.UTF8.GetString(Data.Slice(index + 1, Data[index]));
-        }
-
-        public Span<byte> GetSpanString(int index)
-        {
-            if (index < 0 || index + Data[index] > Size)
-            {
-                throw new ArgumentOutOfRangeException(nameof(index));
-            }
-
-            return Data.Slice(index + 1, Data[index]);
-        }
-
-        public ref bool GetBoolean(int index)
-        {
-            if (index < 0 || index + sizeof(bool) > Size)
-            {
-                throw new ArgumentOutOfRangeException(nameof(index));
-            }
-
-            return ref Unsafe.As<byte, bool>(ref Data[index]);
-        }
     }
 
     public enum TreeNodeDataSliceType

@@ -3,8 +3,11 @@ using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.CompilerServices;
+using Vicuna.Storage.Data;
+using Vicuna.Storage.Data.Trees;
 using Vicuna.Storage.Extensions;
 using Vicuna.Storage.Paging;
+using Vicuna.Storage.Stores.Paging;
 
 namespace Vicuna.Storage.Transactions.Impl
 {
@@ -18,7 +21,7 @@ namespace Vicuna.Storage.Transactions.Impl
 
         protected internal IPageBufferPool Pool { get; }
 
-        protected internal IPageManager PageManager { get; }
+        protected internal IStorePageManager PageManager { get; }
 
         protected internal HashSet<PageNumberInfo> AllocatedPages { get; }
 
@@ -28,7 +31,7 @@ namespace Vicuna.Storage.Transactions.Impl
 
         Transactions.TransactionState ILowLevelTransaction.State => throw new NotImplementedException();
 
-        public LowLevelTransaction(IPageBufferPool pageBufferPool, IPageManager pageManager)
+        public LowLevelTransaction(IPageBufferPool pageBufferPool, IStorePageManager pageManager)
         {
             _syncRoot = new object();
             Pool = pageBufferPool;
@@ -202,6 +205,21 @@ namespace Vicuna.Storage.Transactions.Impl
         public void Dispose()
         {
 
+        }
+
+        public Tree OpenTree(EncodingByteString name)
+        {
+            throw new NotImplementedException();
+        }
+
+        public Tree CreateTree(EncodingByteString name)
+        {
+            throw new NotImplementedException();
+        }
+
+        public void WritePageLog(Page page)
+        {
+            throw new NotImplementedException();
         }
     }
 

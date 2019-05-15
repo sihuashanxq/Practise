@@ -1,9 +1,14 @@
 ﻿using System.Collections.Generic;
+using Vicuna.Storage.Paging;
 
-namespace Vicuna.Storage.Paging
+namespace Vicuna.Storage.Stores.Paging
 {
-    public interface IPageManager
+    public interface IStorePageManager
     {
+        /// <summary>
+        /// </summary>
+        IStorePagerProvider Provider { get; }
+
         /// <summary>
         /// </summary>
         /// <param name="storeId"></param>
@@ -20,12 +25,12 @@ namespace Vicuna.Storage.Paging
         /// <summary>
         /// </summary>
         /// <param name="pages"></param>
-        void FreePage(PageNumberInfo number);
+        void Free(PageNumberInfo number);
 
         /// <summary>
         /// </summary>
         /// <param name="pages"></param>
-        void FreePage(IEnumerable<PageNumberInfo> pages);
+        void Free(IEnumerable<PageNumberInfo> pages);
 
         /// <summary>
         /// </summary>

@@ -1,4 +1,5 @@
-﻿using Vicuna.Storage.Transactions;
+﻿using System;
+using Vicuna.Storage.Transactions;
 
 namespace Vicuna.Storage.Data.Trees
 {
@@ -24,9 +25,9 @@ namespace Vicuna.Storage.Data.Trees
 
         public ref TreePageHeader Header => ref Page.Header;
 
-        public TreeNodeDataSlice MinKey => Page.MinKey;
+        public Span<byte> MinKey => Page.MinKey;
 
-        public TreeNodeDataSlice MaxKey => Page.MaxKey;
+        public Span<byte> MaxKey => Page.MaxKey;
 
         public TreePageEntry(TreePage page, int index, TreePageEntry parent)
         {
@@ -45,22 +46,34 @@ namespace Vicuna.Storage.Data.Trees
             Page.CopyTo(page);
         }
 
-        public TreeNodeDataSlice GetNodeKey(int index)
+        public Span<byte> GetNodeKey(int index)
         {
             return Page.GetNodeKey(index);
         }
 
-        public TreeNodeDataSlice GetNodeData(int index)
+        public Span<byte> GetNodeData(int index)
         {
             return Page.GetNodeData(index);
         }
 
-        public void Search(TreeNodeDataSlice key)
+        public int SearchForKey(Span<byte> key)
+        {
+            Search(key);
+
+            if (LastMatch < 0)
+            {
+                LastMatchIndex++;
+            }
+
+            return LastMatch;
+        }
+
+        public void Search(Span<byte> key)
         {
             Page.Search(key);
         }
 
-        public bool SearchPageIfBranch(ILowLevelTransaction tx, TreeNodeDataSlice key, out TreePage page)
+        public bool SearchPageIfBranch(ILowLevelTransaction tx, Span<byte> key, out TreePage page)
         {
             return Page.SearchPageIfBranch(tx, key, out page);
         }
@@ -85,19 +98,19 @@ namespace Vicuna.Storage.Data.Trees
             return Page.Allocate(index, size, flags, out position);
         }
 
-        public void InsertDataNode(int index, ushort pos, TreeNodeDataEntry entry, long txNumber)
+        public void InsertDataNode(int index, ushort pos, Span<byte> k, Span<byte> v, long txNumber)
         {
-            Page.InsertDataNode(index, pos, entry, txNumber);
+            Page.AddEntry(index, pos, k, v, txNumber);
         }
 
-        public void InsertDataRefNode(int index, ushort pos, TreeNodeDataEntry entry)
+        public void InsertDataRefNode(int index, ushort pos, Span<byte> k, Span<byte> v)
         {
-            Page.InsertDataRefNode(index, pos, entry);
+            Page.AddEntryRef(index, pos, k, v);
         }
 
-        public void InsertPageRefNode(int index, ushort pos, TreeNodeDataSlice keySlice, long pageNumber)
+        public void InsertPageRefNode(int index, ushort pos, Span<byte> k, long pageNumber)
         {
-            Page.InsertPageRefNode(index, pos, keySlice, pageNumber);
+            Page.AddEntryPageRef(index, pos, k, pageNumber);
         }
     }
 }

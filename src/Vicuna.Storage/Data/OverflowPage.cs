@@ -10,7 +10,7 @@ namespace Vicuna.Storage.Data
         public PageHeaderFlags Flags;
 
         [FieldOffset(1)]
-        public int PagerId;
+        public int StoreId;
 
         [FieldOffset(5)]
         public long PageNumber;

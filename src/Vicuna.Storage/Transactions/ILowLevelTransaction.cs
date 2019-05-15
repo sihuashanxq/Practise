@@ -1,4 +1,7 @@
-﻿using Vicuna.Storage.Paging;
+﻿using System;
+using Vicuna.Storage.Data;
+using Vicuna.Storage.Data.Trees;
+using Vicuna.Storage.Paging;
 
 namespace Vicuna.Storage.Transactions
 {
@@ -17,5 +20,11 @@ namespace Vicuna.Storage.Transactions
         Page AllocatePage(int storeId);
 
         Page[] AllocatePage(int storeId, uint count);
+
+        Tree OpenTree(EncodingByteString name);
+
+        Tree CreateTree(EncodingByteString name);
+
+        void WritePageLog(Page page);
     }
 }

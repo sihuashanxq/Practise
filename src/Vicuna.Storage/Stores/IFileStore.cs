@@ -2,28 +2,62 @@
 
 namespace Vicuna.Storage.Stores
 {
+    /// <summary>
+    /// </summary>
     public interface IFileStore : IDisposable
     {
+        /// <summary>
+        /// </summary>
         int Id { get; }
 
-        string Name { get; }
-
+        /// <summary>
+        /// </summary>
         long Length { get; }
 
+        /// <summary>
+        /// </summary>
+        object SyncRoot { get; }
+
+        /// <summary>
+        /// </summary>
         void Sync();
 
-        void Flush();
-
+        /// <summary>
+        /// </summary>
+        /// <param name="length"></param>
         void SetLength(long length);
 
-        byte[] ReadBytes(long pos, int len);
+        /// <summary>
+        /// </summary>
+        /// <param name="pos"></param>
+        /// <param name="len"></param>
+        /// <returns></returns>
+        byte[] Read(long pos, int len);
 
-        void ReadBytes(long pos, Span<byte> dst);
+        /// <summary>
+        /// </summary>
+        /// <param name="pos"></param>
+        /// <param name="data"></param>
+        void Read(long pos, Span<byte> data);
 
-        void WriteBytes(long pos, Span<byte> src);
+        /// <summary>
+        /// </summary>
+        /// <param name="pos"></param>
+        /// <param name="data"></param>
+        void Write(long pos, byte[] data);
 
-        void WriteBytes(long pos, byte[] src);
+        /// <summary>
+        /// </summary>
+        /// <param name="pos"></param>
+        /// <param name="data"></param>
+        void Write(long pos, Span<byte> data);
 
-        void WriteBytes(long pos, byte[] src, int offset, int len);
+        /// <summary>
+        /// </summary>
+        /// <param name="pos"></param>
+        /// <param name="data"></param>
+        /// <param name="offset"></param>
+        /// <param name="len"></param>
+        void Write(long pos, byte[] data, int offset, int len);
     }
 }

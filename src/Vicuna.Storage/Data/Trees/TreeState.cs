@@ -1,6 +1,6 @@
 ﻿namespace Vicuna.Storage.Data.Trees
 {
-    public class TreeStateInfo
+    public class TreeState
     {
         private TreeRootHeader _header;
 
@@ -8,7 +8,7 @@
 
         public ref TreeRootHeader Header => ref _header;
 
-        public TreeStateInfo(TreeRootHeader header)
+        public TreeState(TreeRootHeader header)
         {
             _header = header;
         }

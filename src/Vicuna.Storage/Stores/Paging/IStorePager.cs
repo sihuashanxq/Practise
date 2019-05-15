@@ -1,15 +1,11 @@
 ﻿using Vicuna.Storage.Stores;
 
-namespace Vicuna.Storage.Paging
+namespace Vicuna.Storage.Stores.Paging
 {
     /// <summary>
     /// </summary>
-    public interface IPager : IPageAllocator
+    public interface IStorePager : IStorePageAllocator
     {
-        /// <summary>
-        /// </summary>
-        int Id { get; }
-
         /// <summary>
         /// </summary>
         long Count { get; }

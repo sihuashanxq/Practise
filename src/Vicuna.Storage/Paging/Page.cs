@@ -1,4 +1,5 @@
-﻿using System.Runtime.CompilerServices;
+﻿using System;
+using System.Runtime.CompilerServices;
 
 namespace Vicuna.Storage.Paging
 {
@@ -10,6 +11,12 @@ namespace Vicuna.Storage.Paging
             get => ref Unsafe.As<byte, PageHeader>(ref Data[0]);
         }
 
+        public Page OldPage { get; }
+
+        public bool IsCompacted { get; set; }
+
+        public PageModificationFlags ModificationFlags { get; set; }
+
         public Page() : this(new byte[Constants.PageSize])
         {
 
@@ -19,5 +26,19 @@ namespace Vicuna.Storage.Paging
         {
 
         }
+    }
+
+    [Flags]
+    public enum PageModificationFlags : int
+    {
+        NewPage,
+
+        FreePage,
+
+        AddEntry,
+
+        RemoveEntry,
+
+        CleanEntry
     }
 }

@@ -3,8 +3,10 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Text;
 using Vicuna.Storage.Data.Trees;
+using Vicuna.Storage.Paging;
 using Vicuna.Storage.Paging.Impl;
 using Vicuna.Storage.Stores.Impl;
+using Vicuna.Storage.Stores.Paging;
 using Vicuna.Storage.Transactions.Impl;
 
 namespace Vicuna.Storage
@@ -25,11 +27,16 @@ namespace Vicuna.Storage
 
         static void Main(string[] args)
         {
-            var manager = new PageManager();
+
             var pool = new PageBufferPool();
             var stop = new Stopwatch();
             var file = new FileStore("1.txt");
-            manager._pagers[0] = new Pager(file);
+            var manager = new StorePageManager(
+            new StorePagerProvider(new Dictionary<int, IStorePager>()
+            {
+                [0] = new StorePager(file)
+            }
+            ));
 
             var tx = new LowLevelTransaction(pool, manager);
             var tree = new Tree();
@@ -84,8 +91,8 @@ namespace Vicuna.Storage
 
                         bytes.CopyTo(key.Slice(2));
 
-                        var value = tree.GetValue(tx, new TreeNodeDataSlice(key, TreeNodeDataSliceType.Key));
-
+                        //GetValue是一个测试API,开发时应该有一个cursor(游标之内的)
+                        var value = tree.GetValue(tx, key);
                     }
                     catch (Exception e)
                     {
@@ -94,10 +101,8 @@ namespace Vicuna.Storage
                 }
 
                 stop.Stop();
-                Console.WriteLine(stop.ElapsedMilliseconds);
-
-                Console.WriteLine(err.Count);
-                Console.WriteLine(tree._root.PageNumber);
+                Console.WriteLine("查询100万个Key-Value:" + stop.ElapsedMilliseconds + "毫秒");
+                Console.WriteLine("平均每个Key-Value:" + stop.ElapsedMilliseconds / 1000000.0 + "毫秒");
             }
 
             tx.Commit();

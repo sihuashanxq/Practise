@@ -1,12 +1,13 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Threading;
+using Vicuna.Storage.Stores.Paging;
 
 namespace Vicuna.Storage.Paging.Impl
 {
     public class PageBufferPool : IPageBufferPool
     {
-        private readonly IPageManager _pageManager;
+        private readonly IStorePageManager _pageManager;
 
         private readonly ConcurrentDictionary<PageNumberInfo, PageEntry> _buffers;
 
